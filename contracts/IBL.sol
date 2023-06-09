@@ -28,9 +28,9 @@ contract IBL is Ownable, ReentrancyGuard {
 
     mapping(uint256 => bool) public alreadyUpdateCycleData;
 
-    mapping(string => uint256) public lastRunPrice;
+    mapping(string => uint256) public lastHighestRunPrice;
 
-    mapping(string => uint256) public lastDownloadPrice;
+    mapping(string => uint256) public lastHighestDownloadPrice;
 
     /**
      * The total amount of accrued fees per cycle.
@@ -144,46 +144,45 @@ contract IBL is Ownable, ReentrancyGuard {
         rewardPerCycle[currentCycle] +=   rewardPerCycle[currentCycle] + 10000 * 10**18;
     }
 
-    function addComponent(Component[] memory components) external nonReentrant {
-
-        for(uint256 i=0; i< components.length;i++) {
-            userComponents[msg.sender][components[i].id] = Component(components[i].id, components[i].runPrice, components[i].downloadPrice , components[i].owners, components[i].procentages);
-            componentData[components[i].id] = Component(components[i].id, components[i].runPrice, components[i].downloadPrice , components[i].owners, components[i].procentages);
-            runPrice[components[i].id] = components[i].runPrice;
-            downloadPrice[components[i].id] = components[i].downloadPrice;
-            ownerComponent[components[i].id] = msg.sender;
-        }
+    function addComponent(Component memory component) external payable nonReentrant {
+        require(msg.value == component.downloadPrice, "IBL: You must pay publication fee!");
+        userComponents[msg.sender][component.id] = Component(component.id, component.runPrice, component.downloadPrice , component.owners, component.procentages);
+        componentData[component.id] = Component(component.id, component.runPrice, component.downloadPrice , component.owners, component.procentages);
+        runPrice[component.id] = component.runPrice;
+        downloadPrice[component.id] = component.downloadPrice;
+        ownerComponent[component.id] = msg.sender;
+        lastHighestRunPrice[component.id] = component.runPrice;
+        lastHighestDownloadPrice[component.id] = component.downloadPrice;
     }
 
     function setNewPrice(string memory id, uint256 newRunPrice, uint256 newDownloadPrice) external payable nonReentrant {
+        require(ownerComponent[id] == msg.sender, "IBL: You are not the owner of this component!");
         Component memory ownerComponents = userComponents[msg.sender][id];
-        if(lastRunPrice[id] != newRunPrice){
-            if(lastRunPrice[id] < newRunPrice) {
-                require(msg.value > newRunPrice - lastRunPrice[id],"IBL: you must send the fee in contract!");
+        if(lastHighestRunPrice[id] != newRunPrice){
+            if(lastHighestRunPrice[id] < newRunPrice) {
+                require(msg.value >= newRunPrice - lastHighestRunPrice[id],"IBL: you must send the fee in contract!");
                 userComponents[msg.sender][id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
                 runPrice[id] = newRunPrice;
                 downloadPrice[id] = newDownloadPrice;
-                lastRunPrice[id] = newRunPrice;
+                lastHighestRunPrice[id] = newRunPrice;
             } else {
                 userComponents[msg.sender][id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
                 runPrice[id] = newRunPrice;
                 downloadPrice[id] = newDownloadPrice;
-                lastRunPrice[id] = newRunPrice;
             }
         }
 
-        if(lastDownloadPrice[id] != newDownloadPrice){
-            if(lastDownloadPrice[id] < newDownloadPrice) {
-                require(msg.value > newDownloadPrice - lastDownloadPrice[id],"IBL: you must send the fee in contract!");
+        if(lastHighestDownloadPrice[id] != newDownloadPrice){
+            if(lastHighestDownloadPrice[id] < newDownloadPrice) {
+                require(msg.value >= newDownloadPrice - lastHighestDownloadPrice[id],"IBL: you must send the fee in contract!");
                 userComponents[msg.sender][id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
                 runPrice[id] = newRunPrice;
                 downloadPrice[id] = newDownloadPrice;
-                lastDownloadPrice[id] = newDownloadPrice;
+                lastHighestDownloadPrice[id] = newDownloadPrice;
             } else {
                 userComponents[msg.sender][id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
                 runPrice[id] = newRunPrice;
                 downloadPrice[id] = newDownloadPrice;
-                lastDownloadPrice[id] = newDownloadPrice;
             }
         }
     }
@@ -247,7 +246,8 @@ contract IBL is Ownable, ReentrancyGuard {
     //   }
     //   return components;
     // }
-    function getPrices(string memory id) public view returns(uint256, uint256) {
+
+    function getFees(string memory id) public view returns(uint256, uint256) {
         return (componentData[id].runPrice, componentData[id].downloadPrice);
     }  
 
