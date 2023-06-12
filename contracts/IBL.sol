@@ -16,26 +16,17 @@ contract IBL is Ownable, ReentrancyGuard {
 
     mapping(string => Component) public componentData;
 
-    mapping(string => uint256) public runPrice;
-
-    mapping(string => uint256) public downloadPrice;
-
     mapping(string => address) public ownerComponent;
 
     mapping(address => uint256) public builderReward;
 
     mapping(address => uint256) public ownerNativeFeeAcc;
-
+    
     mapping(uint256 => bool) public alreadyUpdateCycleData;
 
     mapping(string => uint256) public lastHighestRunPrice;
 
     mapping(string => uint256) public lastHighestDownloadPrice;
-
-    /**
-     * The total amount of accrued fees per cycle.
-     */
-    mapping(uint256 => uint256) public cycleAccruedFees;
 
     /**
      * Sum of previous total cycle accrued fees divided by cycle stake.
@@ -47,11 +38,6 @@ contract IBL is Ownable, ReentrancyGuard {
     * The fee amount the account can withdraw.
     */
     mapping(address => uint256) public accAccruedFees;
-
-    /**
-    * Total token rewards allocated per cycle.
-    */
-    mapping(uint256 => uint256) public rewardPerCycle;
 
     uint256  public accruedFees;
     //IBL TEAM FEE paid for each download or run = 5%;
@@ -90,6 +76,115 @@ contract IBL is Ownable, ReentrancyGuard {
      */
     uint256 public immutable i_periodDuration;
 
+    /**
+     * Reward token amount allocated for the current cycle.
+     */
+    uint256 public currentCycleReward;
+
+    /**
+     * Reward token amount allocated for the previous cycle.
+     */
+    uint256 public lastCycleReward;
+
+    /**
+     * Helper variable to store the index of the last active cycle.
+     */
+    uint256 public lastStartedCycle;
+
+    /**
+     * Stores the index of the penultimate active cycle plus one.
+     */
+    uint256 public previousStartedCycle;
+
+    /**
+     * Helper variable to store the index of the last active cycle.
+     */
+    uint256 public currentStartedCycle;
+
+    /**
+     * Stores the amount of stake that will be subracted from the total
+     * stake once a new cycle starts.
+     */
+    uint256 public pendingStakeWithdrawal;
+
+    /**
+     * Accumulates fees while there are no tokens staked after the
+     * entire token supply has been distributed. Once tokens are
+     * staked again, these fees will be distributed in the next
+     * active cycle.
+     */
+    uint256 public pendingFees;
+
+      /**
+     * Total amount of batches burned
+     */
+    uint256 public totalNumberOfBatchesBurned;
+
+    /**
+     * The amount of batches an account has burned.
+     * Resets during a new cycle when an account performs an action
+     * that updates its stats.
+     */
+    mapping(address => uint256) public accCycleBatchesBurned;
+
+    /**
+     * The total amount of batches all accounts have burned per cycle.
+     */
+    mapping(uint256 => uint256) public cycleTotalBatchesBurned;
+
+    /**
+     * The last cycle in which an account has burned.
+     */
+    mapping(address => uint256) public lastActiveCycle;
+
+    /**
+     * Current unclaimed rewards and staked amounts per account.
+     */
+    mapping(address => uint256) public accRewards;
+
+    /**
+     * Total token rewards allocated per cycle.
+     */
+    mapping(uint256 => uint256) public rewardPerCycle;
+
+    /**
+     * Total unclaimed token reward and stake. 
+     * 
+     * Updated when a new cycle starts and when an account claims rewards, stakes or unstakes externally owned tokens.
+     */
+    mapping(uint256 => uint256) public summedCycleStakes;
+
+    /**
+     * The last cycle in which the account had its fees updated.
+     */ 
+    mapping(address => uint256) public lastFeeUpdateCycle;
+
+    /**
+     * The total amount of accrued fees per cycle.
+     */
+    mapping(uint256 => uint256) public cycleAccruedFees;
+
+    /**
+     * Amount an account has staked and is locked during given cycle.
+     */
+    mapping(address => mapping(uint256 => uint256)) public accStakeCycle;
+
+    /**
+     * Stake amount an account can currently withdraw.
+     */
+    mapping(address => uint256) public accWithdrawableStake;
+
+    /**
+     * Cycle in which an account's stake is locked and begins generating fees.
+     */
+    mapping(address => uint256) public accFirstStake;
+
+    /**
+     * Same as accFirstStake, but stores the second stake seperately 
+     * in case the account stakes in two consecutive active cycles.
+     */
+    mapping(address => uint256) public accSecondStake;
+
     struct Component {
         string id;
         uint256 runPrice;
@@ -118,38 +213,38 @@ contract IBL is Ownable, ReentrancyGuard {
         calculateCycle();
         uint256 totalPrice = 0; 
         for(uint256 i=0; i<componentsIds.length;i++){
-            totalPrice += downloadPrice[componentsIds[i]];
-            ownerNativeFeeAcc[ownerComponent[componentsIds[i]]] += downloadPrice[componentsIds[i]];
+            totalPrice += componentData[componentsIds[i]].downloadPrice;
+            ownerNativeFeeAcc[ownerComponent[componentsIds[i]]] += componentData[componentsIds[i]].downloadPrice;
         }
         
-        require(msg.value == totalPrice*2, "IBL: You must send exact value!");
+        require(msg.value == totalPrice*2 ether, "IBL: You must send exact value!");
         sendViaCall(payable(devAddress), (totalPrice*IBL_TEAM_FEE) / 10000);
-        cycleAccruedFees[currentCycle] += (totalPrice*POOL_FEE) / 10000;
-        ibl.mintReward(msg.sender, 10000 * 10**18);
-        rewardPerCycle[currentCycle] +=   rewardPerCycle[currentCycle] + 10000 * 10**18;
+        cycleAccruedFees[currentCycle] += (totalPrice * POOL_FEE) / 10000;
+        currentCycleReward += 10000 ether;
+        ibl.mintReward(msg.sender, 10000 ether);
+        rewardPerCycle[currentCycle] += 1000 ether;
     }  
 
     function runApplication(string[] memory componentsIds) external payable nonReentrant {
         calculateCycle();
         uint256 totalPrice = 0; 
         for(uint256 i=0; i<componentsIds.length;i++){
-            totalPrice += runPrice[componentsIds[i]];
-            ownerNativeFeeAcc[ownerComponent[componentsIds[i]]] += runPrice[componentsIds[i]];
+            totalPrice += componentData[componentsIds[i]].runPrice;
+            ownerNativeFeeAcc[ownerComponent[componentsIds[i]]] += componentData[componentsIds[i]].runPrice;
         }
         
-        require(msg.value == totalPrice*2, "IBL: You must send exact value!");
-        sendViaCall(payable(devAddress), (totalPrice*IBL_TEAM_FEE) / 10000);
-        cycleAccruedFees[currentCycle] += (totalPrice*POOL_FEE) / 10000;
-        ibl.mintReward(msg.sender, 10000 * 10**18);
-        rewardPerCycle[currentCycle] +=   rewardPerCycle[currentCycle] + 10000 * 10**18;
+        require(msg.value == totalPrice*2 ether, "IBL: You must send exact value!");
+        sendViaCall(payable(devAddress), (totalPrice * IBL_TEAM_FEE) / 10000);
+        cycleAccruedFees[currentCycle] += (totalPrice * POOL_FEE) / 10000;
+        currentCycleReward += 10000 ether;
+        ibl.mintReward(msg.sender, 10000 ether);
+        rewardPerCycle[currentCycle] += 10000 ether;
     }
 
     function addComponent(Component memory component) external payable nonReentrant {
         require(msg.value == component.downloadPrice, "IBL: You must pay publication fee!");
         userComponents[msg.sender][component.id] = Component(component.id, component.runPrice, component.downloadPrice , component.owners, component.procentages);
         componentData[component.id] = Component(component.id, component.runPrice, component.downloadPrice , component.owners, component.procentages);
-        runPrice[component.id] = component.runPrice;
-        downloadPrice[component.id] = component.downloadPrice;
         ownerComponent[component.id] = msg.sender;
         lastHighestRunPrice[component.id] = component.runPrice;
         lastHighestDownloadPrice[component.id] = component.downloadPrice;
@@ -162,13 +257,11 @@ contract IBL is Ownable, ReentrancyGuard {
             if(lastHighestRunPrice[id] < newRunPrice) {
                 require(msg.value >= newRunPrice - lastHighestRunPrice[id],"IBL: you must send the fee in contract!");
                 userComponents[msg.sender][id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
-                runPrice[id] = newRunPrice;
-                downloadPrice[id] = newDownloadPrice;
+                componentData[id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
                 lastHighestRunPrice[id] = newRunPrice;
             } else {
                 userComponents[msg.sender][id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
-                runPrice[id] = newRunPrice;
-                downloadPrice[id] = newDownloadPrice;
+                componentData[id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
             }
         }
 
@@ -176,13 +269,11 @@ contract IBL is Ownable, ReentrancyGuard {
             if(lastHighestDownloadPrice[id] < newDownloadPrice) {
                 require(msg.value >= newDownloadPrice - lastHighestDownloadPrice[id],"IBL: you must send the fee in contract!");
                 userComponents[msg.sender][id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
-                runPrice[id] = newRunPrice;
-                downloadPrice[id] = newDownloadPrice;
+                componentData[id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
                 lastHighestDownloadPrice[id] = newDownloadPrice;
             } else {
                 userComponents[msg.sender][id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
-                runPrice[id] = newRunPrice;
-                downloadPrice[id] = newDownloadPrice;
+                componentData[id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
             }
         }
     }
@@ -225,8 +316,64 @@ contract IBL is Ownable, ReentrancyGuard {
     function getCurrentCycle() public view returns (uint256) {
         return (block.timestamp - i_initialTimestamp) / i_periodDuration;
     }
-    function appInteraction() external nonReentrant {
+
+
+    /**
+     * @dev Updates the global helper variables related to fee distribution.
+     */
+    function updateCycleFeesPerStakeSummed() internal {
+        if (currentCycle != currentStartedCycle) {
+            previousStartedCycle = lastStartedCycle + 1;
+            lastStartedCycle = currentStartedCycle;
+        }
+       
+        if (
+            currentCycle > lastStartedCycle &&
+            cycleFeesPerStakeSummed[lastStartedCycle + 1] == 0
+        ) {
+            uint256 feePerStake;
+            if(summedCycleStakes[lastStartedCycle] != 0) {
+                feePerStake = ((cycleAccruedFees[lastStartedCycle] + pendingFees) * SCALING_FACTOR) / 
+            summedCycleStakes[lastStartedCycle];
+                pendingFees = 0;
+            } else {
+                pendingFees += cycleAccruedFees[lastStartedCycle];
+                feePerStake = 0;
+            }
+            
+            cycleFeesPerStakeSummed[lastStartedCycle + 1] = cycleFeesPerStakeSummed[previousStartedCycle] + feePerStake;
+        }
     }
+
+    /**
+    * @dev Updates the global state related to starting a new cycle along 
+    * with helper state variables used in computation of staking rewards.
+    */
+    function setUpNewCycle() internal {
+        if (alreadyUpdateCycleData[currentCycle] == false) {
+            alreadyUpdateCycleData[currentCycle] = true;
+            lastCycleReward = currentCycleReward;
+            uint256 calculatedCycleReward = (lastCycleReward * 10000) / 10020;
+            currentCycleReward = calculatedCycleReward;
+            rewardPerCycle[currentCycle] = calculatedCycleReward;
+
+            currentStartedCycle = currentCycle;
+            
+            summedCycleStakes[currentStartedCycle] += summedCycleStakes[lastStartedCycle] + currentCycleReward;
+            
+            if (pendingStake != 0) {
+                summedCycleStakes[currentStartedCycle] += pendingStake;
+                pendingStake = 0;
+            }
+            
+            if (pendingStakeWithdrawal != 0) {
+                summedCycleStakes[currentStartedCycle] -= pendingStakeWithdrawal;
+                pendingStakeWithdrawal = 0;
+            }
+            
+        }
+    }
+  
     /**
      * Recommended method to use to send native coins.
      * 
