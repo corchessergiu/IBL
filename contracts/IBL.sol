@@ -97,14 +97,6 @@ contract IBL is Ownable, ReentrancyGuard {
      */
     uint256 public pendingStakeWithdrawal;
 
-    /**
-     * Accumulates fees while there are no tokens staked after the
-     * entire token supply has been distributed. Once tokens are
-     * staked again, these fees will be distributed in the next
-     * active cycle.
-     */
-    uint256 public pendingFees;
-
       /**
      * Total amount of batches burned
      */
@@ -345,11 +337,9 @@ contract IBL is Ownable, ReentrancyGuard {
         ) {
             uint256 feePerStake;
             if(summedCycleStakes[lastStartedCycle] != 0) {
-                feePerStake = ((cycleAccruedFees[lastStartedCycle] + pendingFees) * SCALING_FACTOR) / 
+                feePerStake = ((cycleAccruedFees[lastStartedCycle]) * SCALING_FACTOR) / 
             summedCycleStakes[lastStartedCycle];
-                pendingFees = 0;
             } else {
-                pendingFees += cycleAccruedFees[lastStartedCycle];
                 feePerStake = 0;
             }
             
