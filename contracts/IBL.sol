@@ -397,15 +397,6 @@ contract IBL is Ownable, ReentrancyGuard {
         require(sent, "DBXen: failed to send amount");
     }
 
-    // function getUserComponent(address user, uint256 arrayLength) public view returns(Component[] memory){
-    //     Component[] memory components = new Component[](arrayLength);
-    //     for (uint i = 0; i < arrayLength; i++) {
-    //       Component memory lBid = userComponents[user][i];
-    //       components[i] = lBid;
-    //   }
-    //   return components;
-    // }
-
     function getFees(string memory id) public view returns(uint256, uint256) {
         return (componentData[id].runPrice, componentData[id].downloadPrice);
     }  
