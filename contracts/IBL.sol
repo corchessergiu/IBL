@@ -6,17 +6,14 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./IBLERC20.sol";
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "hardhat/console.sol";
 
 contract IBL is Ownable, ReentrancyGuard {
     using SafeERC20 for IBLERC20;
     
     IBLERC20 public ibl;
 
-    mapping(address => mapping(string => Component)) public userComponents;
-
     mapping(string => Component) public componentData;
-
-    mapping(string => address) public ownerComponent;
 
     mapping(address => uint256) public builderReward;
 
@@ -75,11 +72,6 @@ contract IBL is Ownable, ReentrancyGuard {
      * Initialized in contstructor to 1 day.
      */
     uint256 public immutable i_periodDuration;
-
-    /**
-     * Reward token amount allocated for the current cycle.
-     */
-    uint256 public currentCycleReward;
 
     /**
      * Reward token amount allocated for the previous cycle.
@@ -212,68 +204,90 @@ contract IBL is Ownable, ReentrancyGuard {
     function downlodApplication(string[] memory componentsIds) external payable nonReentrant {
         calculateCycle();
         uint256 totalPrice = 0; 
-        for(uint256 i=0; i<componentsIds.length;i++){
-            totalPrice += componentData[componentsIds[i]].downloadPrice;
-            ownerNativeFeeAcc[ownerComponent[componentsIds[i]]] += componentData[componentsIds[i]].downloadPrice;
+        uint256 componentsLength = componentsIds.length;
+        Component memory actualComponent;
+        address[] memory owners;
+        uint256[] memory procentages;
+        uint256 ownersLength;
+        for(uint256 i=0; i<componentsLength; i++){
+            actualComponent = componentData[componentsIds[i]];
+            owners = actualComponent.owners;
+            procentages = actualComponent.procentages;
+            ownersLength = owners.length;
+            for(uint256 j=0; j<ownersLength; j++){
+                ownerNativeFeeAcc[owners[j]] += actualComponent.downloadPrice * procentages[j] / 1 ether;
+            }
+            totalPrice += actualComponent.downloadPrice;
         }
-        
-        require(msg.value == totalPrice*2 ether, "IBL: You must send exact value!");
+        require(msg.value == totalPrice * 2, "IBL: You must send exact value!");
         sendViaCall(payable(devAddress), (totalPrice*IBL_TEAM_FEE) / 10000);
         cycleAccruedFees[currentCycle] += (totalPrice * POOL_FEE) / 10000;
-        currentCycleReward += 10000 ether;
-        ibl.mintReward(msg.sender, 10000 ether);
         rewardPerCycle[currentCycle] += 1000 ether;
+        accRewards[msg.sender] = 1000 ether;
     }  
 
     function runApplication(string[] memory componentsIds) external payable nonReentrant {
         calculateCycle();
         uint256 totalPrice = 0; 
-        for(uint256 i=0; i<componentsIds.length;i++){
-            totalPrice += componentData[componentsIds[i]].runPrice;
-            ownerNativeFeeAcc[ownerComponent[componentsIds[i]]] += componentData[componentsIds[i]].runPrice;
+        uint256 componentsLength = componentsIds.length;
+        Component memory actualComponent;
+        address[] memory owners;
+        uint256[] memory procentages;
+        uint256 ownersLength;
+        for(uint256 i=0; i<componentsLength; i++){
+            actualComponent = componentData[componentsIds[i]];
+            owners = actualComponent.owners;
+            procentages = actualComponent.procentages;
+            ownersLength = owners.length;
+            for(uint256 j=0; j<ownersLength; j++){
+                ownerNativeFeeAcc[owners[j]] += actualComponent.downloadPrice * procentages[j];
+            }
+            totalPrice += actualComponent.downloadPrice;
         }
         
-        require(msg.value == totalPrice*2 ether, "IBL: You must send exact value!");
+        require(msg.value == totalPrice*2, "IBL: You must send exact value!");
         sendViaCall(payable(devAddress), (totalPrice * IBL_TEAM_FEE) / 10000);
         cycleAccruedFees[currentCycle] += (totalPrice * POOL_FEE) / 10000;
-        currentCycleReward += 10000 ether;
-        ibl.mintReward(msg.sender, 10000 ether);
         rewardPerCycle[currentCycle] += 10000 ether;
+        accRewards[msg.sender] = 1000 ether;
     }
 
     function addComponent(Component memory component) external payable nonReentrant {
         require(msg.value == component.downloadPrice, "IBL: You must pay publication fee!");
-        userComponents[msg.sender][component.id] = Component(component.id, component.runPrice, component.downloadPrice , component.owners, component.procentages);
         componentData[component.id] = Component(component.id, component.runPrice, component.downloadPrice , component.owners, component.procentages);
-        ownerComponent[component.id] = msg.sender;
         lastHighestRunPrice[component.id] = component.runPrice;
         lastHighestDownloadPrice[component.id] = component.downloadPrice;
     }
 
     function setNewPrice(string memory id, uint256 newRunPrice, uint256 newDownloadPrice) external payable nonReentrant {
-        require(ownerComponent[id] == msg.sender, "IBL: You are not the owner of this component!");
-        Component memory ownerComponents = userComponents[msg.sender][id];
+        Component memory component = componentData[id];
+        address[] memory owners = component.owners;
+        uint256 ownersLength = owners.length;
+        bool ok;
+        for(uint256 i=0; i<ownersLength; i++){
+            if(owners[i] == msg.sender){
+                ok = true;
+                break;
+            }
+        }
+        require(ok,"IBL: You cannot update the price because you are not the owner");
         if(lastHighestRunPrice[id] != newRunPrice){
             if(lastHighestRunPrice[id] < newRunPrice) {
                 require(msg.value >= newRunPrice - lastHighestRunPrice[id],"IBL: you must send the fee in contract!");
-                userComponents[msg.sender][id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
-                componentData[id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
+                componentData[id] = Component(id, newRunPrice, newDownloadPrice, component.owners, component.procentages);
                 lastHighestRunPrice[id] = newRunPrice;
             } else {
-                userComponents[msg.sender][id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
-                componentData[id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
+                componentData[id] = Component(id, newRunPrice, newDownloadPrice, component.owners, component.procentages);
             }
         }
 
         if(lastHighestDownloadPrice[id] != newDownloadPrice){
             if(lastHighestDownloadPrice[id] < newDownloadPrice) {
                 require(msg.value >= newDownloadPrice - lastHighestDownloadPrice[id],"IBL: you must send the fee in contract!");
-                userComponents[msg.sender][id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
-                componentData[id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
+                componentData[id] = Component(id, newRunPrice, newDownloadPrice, component.owners, component.procentages);
                 lastHighestDownloadPrice[id] = newDownloadPrice;
             } else {
-                userComponents[msg.sender][id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
-                componentData[id] = Component(id, newRunPrice, newDownloadPrice, ownerComponents.owners, ownerComponents.procentages);
+                componentData[id] = Component(id, newRunPrice, newDownloadPrice, component.owners, component.procentages);
             }
         }
     }
@@ -350,28 +364,28 @@ contract IBL is Ownable, ReentrancyGuard {
     * with helper state variables used in computation of staking rewards.
     */
     function setUpNewCycle() internal {
-        if (alreadyUpdateCycleData[currentCycle] == false) {
-            alreadyUpdateCycleData[currentCycle] = true;
-            lastCycleReward = currentCycleReward;
-            uint256 calculatedCycleReward = (lastCycleReward * 10000) / 10020;
-            currentCycleReward = calculatedCycleReward;
-            rewardPerCycle[currentCycle] = calculatedCycleReward;
+        // if (alreadyUpdateCycleData[currentCycle] == false) {
+        //     alreadyUpdateCycleData[currentCycle] = true;
+        //     lastCycleReward = currentCycleReward;
+        //     uint256 calculatedCycleReward = (lastCycleReward * 10000) / 10020;
+        //     currentCycleReward = calculatedCycleReward;
+        //     rewardPerCycle[currentCycle] = calculatedCycleReward;
 
-            currentStartedCycle = currentCycle;
+        //     currentStartedCycle = currentCycle;
             
-            summedCycleStakes[currentStartedCycle] += summedCycleStakes[lastStartedCycle] + currentCycleReward;
+        //     summedCycleStakes[currentStartedCycle] += summedCycleStakes[lastStartedCycle] + currentCycleReward;
             
-            if (pendingStake != 0) {
-                summedCycleStakes[currentStartedCycle] += pendingStake;
-                pendingStake = 0;
-            }
+        //     if (pendingStake != 0) {
+        //         summedCycleStakes[currentStartedCycle] += pendingStake;
+        //         pendingStake = 0;
+        //     }
             
-            if (pendingStakeWithdrawal != 0) {
-                summedCycleStakes[currentStartedCycle] -= pendingStakeWithdrawal;
-                pendingStakeWithdrawal = 0;
-            }
+        //     if (pendingStakeWithdrawal != 0) {
+        //         summedCycleStakes[currentStartedCycle] -= pendingStakeWithdrawal;
+        //         pendingStakeWithdrawal = 0;
+        //     }
             
-        }
+        // }
     }
   
     /**
