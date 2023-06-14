@@ -19,8 +19,6 @@ contract IBL is Ownable, ReentrancyGuard {
     
     mapping(uint256 => bool) public alreadyUpdateCycleData;
 
-    mapping(string => uint256) public lastHighestRunPrice;
-
     mapping(string => uint256) public lastHighestDownloadPrice;
 
     /**
@@ -245,7 +243,6 @@ contract IBL is Ownable, ReentrancyGuard {
     function addComponent(Component memory component) external payable nonReentrant {
         require(msg.value == component.downloadPrice, "IBL: You must pay publication fee!");
         componentData[component.id] = Component(component.id, component.runPrice, component.downloadPrice , component.owners, component.procentages);
-        lastHighestRunPrice[component.id] = component.runPrice;
         lastHighestDownloadPrice[component.id] = component.downloadPrice;
     }
 
@@ -261,15 +258,6 @@ contract IBL is Ownable, ReentrancyGuard {
             }
         }
         require(ok,"IBL: You cannot update the price because you are not the owner");
-        if(lastHighestRunPrice[id] != newRunPrice){
-            if(lastHighestRunPrice[id] < newRunPrice) {
-                require(msg.value >= newRunPrice - lastHighestRunPrice[id],"IBL: you must send the fee in contract!");
-                componentData[id] = Component(id, newRunPrice, newDownloadPrice, component.owners, component.procentages);
-                lastHighestRunPrice[id] = newRunPrice;
-            } else {
-                componentData[id] = Component(id, newRunPrice, newDownloadPrice, component.owners, component.procentages);
-            }
-        }
 
         if(lastHighestDownloadPrice[id] != newDownloadPrice){
             if(lastHighestDownloadPrice[id] < newDownloadPrice) {
