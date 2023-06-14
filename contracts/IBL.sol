@@ -191,6 +191,9 @@ contract IBL is Ownable, ReentrancyGuard {
 
     function downlodApplication(string[] memory componentsIds) external payable nonReentrant {
         calculateCycle();
+        updateCycleFeesPerStakeSummed();
+        setUpNewCycle();
+        updateStats(msg.sender);
         uint256 totalPrice = 0; 
         uint256 componentsLength = componentsIds.length;
         Component memory actualComponent;
@@ -211,11 +214,16 @@ contract IBL is Ownable, ReentrancyGuard {
         sendViaCall(payable(devAddress), (totalPrice*IBL_TEAM_FEE) / 10000);
         cycleAccruedFees[currentCycle] += (totalPrice * POOL_FEE) / 10000;
         rewardPerCycle[currentCycle] += 1000 ether;
-        accRewards[msg.sender] = 1000 ether;
+        accRewards[msg.sender] += 1000 ether;
+        lastActiveCycle[msg.sender] = currentCycle;
+        summedCycleStakes[currentCycle] += summedCycleStakes[lastStartedCycle] + 1000 ether;
     }  
 
     function runApplication(string[] memory componentsIds) external payable nonReentrant {
         calculateCycle();
+        updateCycleFeesPerStakeSummed();
+        setUpNewCycle();
+        updateStats(msg.sender);
         uint256 totalPrice = 0; 
         uint256 componentsLength = componentsIds.length;
         Component memory actualComponent;
@@ -237,16 +245,24 @@ contract IBL is Ownable, ReentrancyGuard {
         sendViaCall(payable(devAddress), (totalPrice * IBL_TEAM_FEE) / 10000);
         cycleAccruedFees[currentCycle] += (totalPrice * POOL_FEE) / 10000;
         rewardPerCycle[currentCycle] += 10000 ether;
-        accRewards[msg.sender] = 1000 ether;
+        accRewards[msg.sender] += 1000 ether;
+        lastActiveCycle[msg.sender] = currentCycle;
+        summedCycleStakes[currentCycle] += summedCycleStakes[lastStartedCycle] + 1000 ether;
     }
 
     function addComponent(Component memory component) external payable nonReentrant {
+        calculateCycle();
+        updateCycleFeesPerStakeSummed();
+        updateStats(msg.sender);
         require(msg.value == component.downloadPrice, "IBL: You must pay publication fee!");
         componentData[component.id] = Component(component.id, component.runPrice, component.downloadPrice , component.owners, component.procentages);
         lastHighestDownloadPrice[component.id] = component.downloadPrice;
     }
 
     function setNewPrice(string memory id, uint256 newRunPrice, uint256 newDownloadPrice) external payable nonReentrant {
+        calculateCycle();
+        updateCycleFeesPerStakeSummed();
+        updateStats(msg.sender);
         Component memory component = componentData[id];
         address[] memory owners = component.owners;
         uint256 ownersLength = owners.length;
@@ -262,17 +278,37 @@ contract IBL is Ownable, ReentrancyGuard {
         if(lastHighestDownloadPrice[id] < newDownloadPrice) {
             require(msg.value >= newDownloadPrice - lastHighestDownloadPrice[id],"IBL: you must send the fee in contract!");
             lastHighestDownloadPrice[id] = newDownloadPrice;
+            cycleAccruedFees[currentCycle] += msg.value;
         } 
         componentData[id] = Component(id, newRunPrice, newDownloadPrice, component.owners, component.procentages);
     }
     
-    function claimNativeFeeAcc() external nonReentrant {
-        uint256 fees = ownerNativeFeeAcc[msg.sender];
-        require(fees > 0,"IBL: You do not have fees");
+    /**
+     * @dev Mints newly accrued account rewards and transfers the entire 
+     * allocated amount to the transaction sender address.
+     */
+    function claimRewards()
+        external
+        nonReentrant()
+    {
+        calculateCycle();
+        updateCycleFeesPerStakeSummed();
+        updateStats(msg.sender);
+        uint256 reward = accRewards[msg.sender] - accWithdrawableStake[msg.sender];
         
-        ownerNativeFeeAcc[msg.sender] = 0;
-        sendViaCall(payable(msg.sender), fees);
+        require(reward > 0, "IBL: account has no rewards");
+
+        accRewards[msg.sender] -= reward;
+        if (lastStartedCycle == currentStartedCycle) {
+            pendingStakeWithdrawal += reward;
+        } else {
+            summedCycleStakes[currentCycle] = summedCycleStakes[currentCycle] - reward;
+        }
+
+        ibl.mintReward(msg.sender, reward);
+        //emit RewardsClaimed(currentCycle, _msgSender(), reward);
     }
+
     /**
      * @dev Transfers newly accrued fees to sender's address.
      */
@@ -281,12 +317,84 @@ contract IBL is Ownable, ReentrancyGuard {
         nonReentrant()
     {
         calculateCycle();
+        updateCycleFeesPerStakeSummed();
+        updateStats(msg.sender);
+
         uint256 fees = accAccruedFees[msg.sender];
         require(fees > 0, "DBXen: amount is zero");
         accAccruedFees[msg.sender] = 0;
         sendViaCall(payable(msg.sender), fees);
-        emit FeesClaimed(getCurrentCycle(), msg.sender, fees);
     }
+
+    /**
+     * @dev Stakes the given amount and increases the share of the daily allocated fees.
+     * The tokens are transfered from sender account to this contract.
+     * To receive the tokens back, the unstake function must be called by the same account address.
+     * 
+     * @param amount token amount to be staked (in wei).
+     */
+    function stake(uint256 amount)
+        external
+        nonReentrant()
+    {
+        calculateCycle();
+        updateCycleFeesPerStakeSummed();
+        updateStats(msg.sender);
+        require(amount > 0, "IBL: amount is zero");
+        pendingStake += amount;
+        uint256 cycleToSet = currentCycle + 1;
+
+        if (lastStartedCycle == currentStartedCycle) {
+            cycleToSet = lastStartedCycle + 1;
+        }
+
+        if (
+            (cycleToSet != accFirstStake[msg.sender] &&
+                cycleToSet != accSecondStake[msg.sender])
+        ) {
+            if (accFirstStake[msg.sender] == 0) {
+                accFirstStake[msg.sender] = cycleToSet;
+            } else if (accSecondStake[msg.sender] == 0) {
+                accSecondStake[msg.sender] = cycleToSet;
+            }
+        }
+
+        accStakeCycle[msg.sender][cycleToSet] += amount;
+        ibl.safeTransferFrom(msg.sender, address(this), amount);
+    }
+    
+    /**
+     * @dev Unstakes the given amount and decreases the share of the daily allocated fees.
+     * If the balance is availabe, the tokens are transfered from this contract to the sender account.
+     * 
+     * @param amount token amount to be unstaked (in wei).
+     */
+    function unstake(uint256 amount)
+        external
+        nonReentrant()
+    {
+        calculateCycle();
+        updateCycleFeesPerStakeSummed();
+        updateStats(msg.sender);
+        require(amount > 0, "IBL: amount is zero");
+
+        require(
+            amount <= accWithdrawableStake[msg.sender],
+            "IBL: amount greater than withdrawable stake"
+        );
+
+        if (lastStartedCycle == currentStartedCycle) {
+            pendingStakeWithdrawal += amount;
+        } else {
+            summedCycleStakes[currentCycle] -= amount;
+        }
+
+        accWithdrawableStake[msg.sender] -= amount;
+        accRewards[msg.sender] -= amount;
+
+        ibl.safeTransfer(msg.sender, amount);
+    }
+
     /**
      * @dev Updates the index of the cycle.
      */
@@ -336,30 +444,115 @@ contract IBL is Ownable, ReentrancyGuard {
     * with helper state variables used in computation of staking rewards.
     */
     function setUpNewCycle() internal {
-        // if (alreadyUpdateCycleData[currentCycle] == false) {
-        //     alreadyUpdateCycleData[currentCycle] = true;
-        //     lastCycleReward = currentCycleReward;
-        //     uint256 calculatedCycleReward = (lastCycleReward * 10000) / 10020;
-        //     currentCycleReward = calculatedCycleReward;
-        //     rewardPerCycle[currentCycle] = calculatedCycleReward;
+        if (alreadyUpdateCycleData[currentCycle] == false) {
+            alreadyUpdateCycleData[currentCycle] = true;
+            //lastCycleReward = currentCycleReward;
+            //uint256 calculatedCycleReward = (lastCycleReward * 10000) / 10020;
+            //currentCycleReward = calculatedCycleReward;
+            //rewardPerCycle[currentCycle] = calculatedCycleReward;
 
-        //     currentStartedCycle = currentCycle;
+            currentStartedCycle = currentCycle;
             
-        //     summedCycleStakes[currentStartedCycle] += summedCycleStakes[lastStartedCycle] + currentCycleReward;
+            //summedCycleStakes[currentStartedCycle] += summedCycleStakes[lastStartedCycle] + currentCycleReward;
             
-        //     if (pendingStake != 0) {
-        //         summedCycleStakes[currentStartedCycle] += pendingStake;
-        //         pendingStake = 0;
-        //     }
+            if (pendingStake != 0) {
+                summedCycleStakes[currentStartedCycle] += pendingStake;
+                pendingStake = 0;
+            }
             
-        //     if (pendingStakeWithdrawal != 0) {
-        //         summedCycleStakes[currentStartedCycle] -= pendingStakeWithdrawal;
-        //         pendingStakeWithdrawal = 0;
-        //     }
+            if (pendingStakeWithdrawal != 0) {
+                summedCycleStakes[currentStartedCycle] -= pendingStakeWithdrawal;
+                pendingStakeWithdrawal = 0;
+            }
             
-        // }
+        }
     }
-  
+    
+
+    /**
+     * @dev Updates various helper state variables used to compute token rewards 
+     * and fees distribution for a given account.
+     * 
+     * @param account the address of the account to make the updates for.
+     */
+    function updateStats(address account) internal {
+        //  if (	
+        //     currentCycle > lastActiveCycle[account] &&	
+        //     accCycleBatchesBurned[account] != 0	
+        // ) {	
+        //     uint256 lastCycleAccReward = (accCycleBatchesBurned[account] * rewardPerCycle[lastActiveCycle[account]]) / 	
+        //         cycleTotalBatchesBurned[lastActiveCycle[account]];	
+        //     accRewards[account] += lastCycleAccReward;	
+        //     accCycleBatchesBurned[account] = 0;
+        // }
+
+        if (
+            currentCycle > lastStartedCycle &&
+            lastFeeUpdateCycle[account] != lastStartedCycle + 1
+        ) {
+            accAccruedFees[account] =
+                accAccruedFees[account] +
+                (
+                    (accRewards[account] * 
+                        (cycleFeesPerStakeSummed[lastStartedCycle + 1] - 
+                            cycleFeesPerStakeSummed[lastFeeUpdateCycle[account]]
+                        )
+                    )
+                ) /
+                SCALING_FACTOR;
+            lastFeeUpdateCycle[account] = lastStartedCycle + 1;
+        }
+
+        if (
+            accFirstStake[account] != 0 &&
+            currentCycle > accFirstStake[account]
+        ) {
+            uint256 unlockedFirstStake = accStakeCycle[account][accFirstStake[account]];
+
+            accRewards[account] += unlockedFirstStake;
+            accWithdrawableStake[account] += unlockedFirstStake;
+            if (lastStartedCycle + 1 > accFirstStake[account]) {
+                accAccruedFees[account] = accAccruedFees[account] + 
+                (
+                    (accStakeCycle[account][accFirstStake[account]] * 
+                        (cycleFeesPerStakeSummed[lastStartedCycle + 1] - 
+                            cycleFeesPerStakeSummed[accFirstStake[account]]
+                        )
+                    )
+                ) / 
+                SCALING_FACTOR;
+            }
+
+            accStakeCycle[account][accFirstStake[account]] = 0;
+            accFirstStake[account] = 0;
+
+            if (accSecondStake[account] != 0) {
+                if (currentCycle > accSecondStake[account]) {
+                    uint256 unlockedSecondStake = accStakeCycle[account][accSecondStake[account]];
+                    accRewards[account] += unlockedSecondStake;
+                    accWithdrawableStake[account] += unlockedSecondStake;
+                    
+                    if (lastStartedCycle + 1 > accSecondStake[account]) {
+                        accAccruedFees[account] = accAccruedFees[account] + 
+                        (
+                            (accStakeCycle[account][accSecondStake[account]] * 
+                                (cycleFeesPerStakeSummed[lastStartedCycle + 1] - 
+                                    cycleFeesPerStakeSummed[accSecondStake[account]]
+                                )
+                            )
+                        ) / 
+                        SCALING_FACTOR;
+                    }
+
+                    accStakeCycle[account][accSecondStake[account]] = 0;
+                    accSecondStake[account] = 0;
+                } else {
+                    accFirstStake[account] = accSecondStake[account];
+                    accSecondStake[account] = 0;
+                }
+            }
+        }
+    }
     /**
      * Recommended method to use to send native coins.
      * 
