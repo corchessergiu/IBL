@@ -40,7 +40,7 @@ describe.only("Test getUserComponent", async function() {
         console.log(await IBL.ownerNativeFeeAcc(carol.address));
     });
 
-    it("Test setNewPrice function", async() => {
+    it.only("Test setNewPrice function", async() => {
         let component = ["s", ethers.utils.parseEther("1"), ethers.utils.parseEther("1"), [alice.address.toString()],
             [ethers.utils.parseEther("0.5")]
         ]
@@ -55,11 +55,13 @@ describe.only("Test getUserComponent", async function() {
         console.log(await IBL.ownerNativeFeeAcc(bob.address));
         console.log(await IBL.ownerNativeFeeAcc(carol.address));
 
-        await IBL.connect(alice).setNewPrice("s", 2, 2, { value: ethers.utils.parseEther("2") });
+        await IBL.connect(alice).setNewPrice("s", ethers.utils.parseEther("2"), ethers.utils.parseEther("2"), { value: ethers.utils.parseEther("1") });
         console.log(await IBL.getFees("s"));
-        await IBL.connect(bob).setNewPrice("s2", 1, 0);
+        await IBL.connect(bob).setNewPrice("s2", ethers.utils.parseEther("1"), ethers.utils.parseEther("0"));
         console.log(await IBL.getFees("s2"));
-        await IBL.connect(carol).setNewPrice("s2", 1, 5, { value: ethers.utils.parseEther("3") });
+        await IBL.connect(carol).setNewPrice("s2", ethers.utils.parseEther("1"), ethers.utils.parseEther("5"), { value: ethers.utils.parseEther("4") });
+        console.log(await IBL.getFees("s2"));
+        await IBL.connect(alice).setNewPrice("s2", ethers.utils.parseEther("10"), ethers.utils.parseEther("1"));
         console.log(await IBL.getFees("s2"));
     });
 

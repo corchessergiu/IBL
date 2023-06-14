@@ -258,16 +258,12 @@ contract IBL is Ownable, ReentrancyGuard {
             }
         }
         require(ok,"IBL: You cannot update the price because you are not the owner");
-
-        if(lastHighestDownloadPrice[id] != newDownloadPrice){
-            if(lastHighestDownloadPrice[id] < newDownloadPrice) {
-                require(msg.value >= newDownloadPrice - lastHighestDownloadPrice[id],"IBL: you must send the fee in contract!");
-                componentData[id] = Component(id, newRunPrice, newDownloadPrice, component.owners, component.procentages);
-                lastHighestDownloadPrice[id] = newDownloadPrice;
-            } else {
-                componentData[id] = Component(id, newRunPrice, newDownloadPrice, component.owners, component.procentages);
-            }
-        }
+        
+        if(lastHighestDownloadPrice[id] < newDownloadPrice) {
+            require(msg.value >= newDownloadPrice - lastHighestDownloadPrice[id],"IBL: you must send the fee in contract!");
+            lastHighestDownloadPrice[id] = newDownloadPrice;
+        } 
+        componentData[id] = Component(id, newRunPrice, newDownloadPrice, component.owners, component.procentages);
     }
     
     function claimNativeFeeAcc() external nonReentrant {
