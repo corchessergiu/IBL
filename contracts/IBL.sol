@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./IBLERC20.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "hardhat/console.sol";
 
 contract IBL is Ownable, ReentrancyGuard {
     using SafeERC20 for IBLERC20;
@@ -216,7 +217,7 @@ contract IBL is Ownable, ReentrancyGuard {
         rewardPerCycle[currentCycle] += 1000 ether;
         accRewards[msg.sender] += 1000 ether;
         lastActiveCycle[msg.sender] = currentCycle;
-        summedCycleStakes[currentCycle] += summedCycleStakes[lastStartedCycle] + 1000 ether;
+        summedCycleStakes[currentCycle] += 1000 ether;
     }  
 
     function runApplication(string[] memory componentsIds) external payable nonReentrant {
@@ -236,18 +237,17 @@ contract IBL is Ownable, ReentrancyGuard {
             procentages = actualComponent.procentages;
             ownersLength = owners.length;
             for(uint256 j=0; j<ownersLength; j++){
-                ownerNativeFeeAcc[owners[j]] += actualComponent.downloadPrice * procentages[j];
+                ownerNativeFeeAcc[owners[j]] += actualComponent.runPrice * procentages[j] / 1 ether;
             }
-            totalPrice += actualComponent.downloadPrice;
-        }
-        
+            totalPrice += actualComponent.runPrice;
+        }   
         require(msg.value == totalPrice*2, "IBL: You must send exact value!");
         sendViaCall(payable(devAddress), (totalPrice * IBL_TEAM_FEE) / 10000);
         cycleAccruedFees[currentCycle] += (totalPrice * POOL_FEE) / 10000;
-        rewardPerCycle[currentCycle] += 10000 ether;
+        rewardPerCycle[currentCycle] += 1000 ether;
         accRewards[msg.sender] += 1000 ether;
         lastActiveCycle[msg.sender] = currentCycle;
-        summedCycleStakes[currentCycle] += summedCycleStakes[lastStartedCycle] + 1000 ether;
+        summedCycleStakes[currentCycle] += 1000 ether;
     }
 
     function addComponent(Component memory component) external payable nonReentrant {
@@ -553,6 +553,18 @@ contract IBL is Ownable, ReentrancyGuard {
             }
         }
     }
+
+    function claimComponentOwnerFees() external nonReentrant()
+       {
+        calculateCycle();
+        updateCycleFeesPerStakeSummed();
+        updateStats(msg.sender);
+        uint256 fees = ownerNativeFeeAcc[msg.sender];
+        require(fees > 0, "IBL: amount is zero");
+        ownerNativeFeeAcc[msg.sender] = 0;
+        sendViaCall(payable(msg.sender), fees);
+    }
+
     /**
      * Recommended method to use to send native coins.
      * 
