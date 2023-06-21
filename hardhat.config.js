@@ -1,6 +1,16 @@
-/** @type import('hardhat/config').HardhatUserConfig */
-require("@nomicfoundation/hardhat-toolbox");
+require("@nomiclabs/hardhat-waffle");
 
+/**
+ * @type import('hardhat/config').HardhatUserConfig
+ */
 module.exports = {
-    solidity: "0.8.18",
+    solidity: "0.8.17",
+
+    networks: {
+        hardhat: {
+            gas: 19000000,
+            allowUnlimitedContractSize: true,
+            timeout: 1800000
+        }
+    }
 };

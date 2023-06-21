@@ -257,6 +257,7 @@ contract IBL is Ownable, ReentrancyGuard {
         require(msg.value == component.downloadPrice, "IBL: You must pay publication fee!");
         componentData[component.id] = Component(component.id, component.runPrice, component.downloadPrice , component.owners, component.procentages);
         lastHighestDownloadPrice[component.id] = component.downloadPrice;
+        sendViaCall(payable(devAddress), msg.value);
     }
 
     function setNewPrice(string memory id, uint256 newRunPrice, uint256 newDownloadPrice) external payable nonReentrant {
@@ -319,9 +320,8 @@ contract IBL is Ownable, ReentrancyGuard {
         calculateCycle();
         updateCycleFeesPerStakeSummed();
         updateStats(msg.sender);
-
         uint256 fees = accAccruedFees[msg.sender];
-        require(fees > 0, "DBXen: amount is zero");
+        require(fees > 0, "IBL: amount is zero");
         accAccruedFees[msg.sender] = 0;
         sendViaCall(payable(msg.sender), fees);
     }
@@ -478,14 +478,13 @@ contract IBL is Ownable, ReentrancyGuard {
     function updateStats(address account) internal {
         //  if (	
         //     currentCycle > lastActiveCycle[account] &&	
-        //     accCycleBatchesBurned[account] != 0	
+        //     cycleAccruedFees[currentCycle] != 0	
         // ) {	
         //     uint256 lastCycleAccReward = (accCycleBatchesBurned[account] * rewardPerCycle[lastActiveCycle[account]]) / 	
         //         cycleTotalBatchesBurned[lastActiveCycle[account]];	
         //     accRewards[account] += lastCycleAccReward;	
         //     accCycleBatchesBurned[account] = 0;
         // }
-
         if (
             currentCycle > lastStartedCycle &&
             lastFeeUpdateCycle[account] != lastStartedCycle + 1
@@ -501,6 +500,7 @@ contract IBL is Ownable, ReentrancyGuard {
                 ) /
                 SCALING_FACTOR;
             lastFeeUpdateCycle[account] = lastStartedCycle + 1;
+            
         }
 
         if (
