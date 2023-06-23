@@ -7,7 +7,7 @@ describe("Test addComponent function", async function() {
     let IBL;
     let alice, bob, carol, dean;
     beforeEach("Distribution fees tests", async() => {
-        [deployer, alice, bob, carol, dean, devAddress, runner1, runner2] = await ethers.getSigners();
+        [deployer, alice, bob, carol, dean, devAddress, runner1, runner2, runner3, runner4] = await ethers.getSigners();
 
         const iblContract = await ethers.getContractFactory("IBL");
         IBL = await iblContract.deploy(devAddress.address);
@@ -169,7 +169,7 @@ describe("Test addComponent function", async function() {
         expect(aliceBalanceAfterSecondClaim.sub(BigNumber.from("600000000000000000")).add(transactionFee2)).to.equal(aliceBalanceAfterClaim);
     });
 
-    it.only("Test fees distribution", async() => {
+    it("Test fees distribution", async() => {
         let component = ["s", ethers.utils.parseEther("1"), ethers.utils.parseEther("1"), [alice.address.toString()],
             [ethers.utils.parseEther("1")]
         ]
@@ -262,4 +262,85 @@ describe("Test addComponent function", async function() {
         expect(await ethers.provider.getBalance(IBL.address)).to.equal(0);
     });
 
+    it.only("Test fees distribution with complex scenarios", async() => {
+        let component = ["s", ethers.utils.parseEther("2"), ethers.utils.parseEther("1"), [alice.address.toString()],
+            [ethers.utils.parseEther("1")]
+        ]
+        let component2 = ["s2", ethers.utils.parseEther("2"), ethers.utils.parseEther("1"), [alice.address.toString(), bob.address.toString(), carol.address.toString()],
+            [ethers.utils.parseEther("0.6"), ethers.utils.parseEther("0.2"), ethers.utils.parseEther("0.2")]
+        ]
+        let component3 = ["s3", ethers.utils.parseEther("2"), ethers.utils.parseEther("3"), [alice.address.toString(), dean.address.toString()],
+            [ethers.utils.parseEther("0.5"), ethers.utils.parseEther("0.5")]
+        ]
+        let component4 = ["s4", ethers.utils.parseEther("4"), ethers.utils.parseEther("5"), [alice.address.toString(), bob.address.toString(), carol.address.toString(), dean.address.toString()],
+            [ethers.utils.parseEther("0.6"), ethers.utils.parseEther("0.2"), ethers.utils.parseEther("0.1"), ethers.utils.parseEther("0.1")]
+        ]
+
+        await IBL.connect(alice).addComponent(component, { value: ethers.utils.parseEther("1") })
+        await IBL.connect(alice).addComponent(component2, { value: ethers.utils.parseEther("1") })
+        await IBL.connect(alice).addComponent(component3, { value: ethers.utils.parseEther("3") })
+        await IBL.connect(alice).addComponent(component4, { value: ethers.utils.parseEther("5") })
+
+        expect(await ethers.provider.getBalance(devAddress.address)).to.equal(ethers.utils.parseEther("10").add(ethers.utils.parseEther("10000")))
+        let initialBalanceRunner1 = await ethers.provider.getBalance(runner1.address);
+        let initialBalanceRunner2 = await ethers.provider.getBalance(runner2.address);
+        let initialBalanceRunner3 = await ethers.provider.getBalance(runner3.address);
+        let initialBalanceRunner4 = await ethers.provider.getBalance(runner4.address);
+
+        expect(initialBalanceRunner1).to.equal(ethers.utils.parseEther("10000"));
+        expect(initialBalanceRunner2).to.equal(ethers.utils.parseEther("10000"));
+        expect(initialBalanceRunner3).to.equal(ethers.utils.parseEther("10000"));
+        expect(initialBalanceRunner4).to.equal(ethers.utils.parseEther("10000"));
+
+        await IBL.connect(runner1).runApplication(["s"], { value: ethers.utils.parseEther("4") });
+
+        await hre.ethers.provider.send("evm_increaseTime", [60 * 60 * 24])
+        await hre.ethers.provider.send("evm_mine")
+
+        let feeProcentageFirstRun = BigNumber.from("2000000000000000000").mul(BigNumber.from("95000000000000000000")).div(BigNumber.from("100000000000000000000"));
+        await IBL.connect(runner1).runApplication(["s"], { value: ethers.utils.parseEther("4") });
+        let accPerCycle0 = await IBL.accAccruedFees(runner1.address);
+        expect(feeProcentageFirstRun).to.equal(accPerCycle0);
+
+        await hre.ethers.provider.send("evm_increaseTime", [60 * 60 * 24])
+        await hre.ethers.provider.send("evm_mine")
+        await IBL.connect(runner1).runApplication(["s2"], { value: ethers.utils.parseEther("4") });
+        let accPerCycle1 = accPerCycle0.add(feeProcentageFirstRun);
+        let cycle2AccFees = await IBL.accAccruedFees(runner1.address)
+        expect(accPerCycle1).to.equal(cycle2AccFees);
+
+        await IBL.connect(runner2).runApplication(["s2"], { value: ethers.utils.parseEther("4") });
+        expect(await IBL.currentCycle()).to.equal("2");
+
+        await hre.ethers.provider.send("evm_increaseTime", [60 * 60 * 24])
+        await hre.ethers.provider.send("evm_mine")
+
+        let runner1BalanceBeforeClaim = await ethers.provider.getBalance(runner1.address);
+        let runner2BalanceBeforeClaim = await ethers.provider.getBalance(runner2.address);
+
+        let runner1ClaimFees = await IBL.connect(runner1).claimFees();
+        const transactionReceiptRunner1ClaimFees = await ethers.provider.getTransactionReceipt(runner1ClaimFees.hash);
+        const gasUsedRunner1ClaimFee = transactionReceiptRunner1ClaimFees.gasUsed;
+        const gasPricePaidRunner1ClaimFee = transactionReceiptRunner1ClaimFees.effectiveGasPrice;
+        const transactionFeeRunner1ClaimFee = gasUsedRunner1ClaimFee.mul(gasPricePaidRunner1ClaimFee);
+
+        //Cycle 0, protocol fee = 1.9
+        //Cycle 1, protocol fee = 1.9
+        //Cycle 2, protocol fee = 3.8
+        //Claim: Runner 1 get cycle 0 and cycle 1 protocol fee => balance = 3.8 and also get 75% from cycle 2 which have 3.8 eth to distribute in protocol fee
+        //Claim: Runner 2 get from cycle 2 25% => 0.95(25/100*3.8)
+        //=> Runner 1 must claim 6.65 eth from fees
+        //=>Runner 2 must claim 0.95 eth from fees
+        let runner1BalanceAfterClaim = await ethers.provider.getBalance(runner1.address);
+        expect(runner1BalanceAfterClaim.add(transactionFeeRunner1ClaimFee)).to.equal(runner1BalanceBeforeClaim.add(BigNumber.from("6650000000000000000")))
+
+        let runner2ClaimFees = await IBL.connect(runner2).claimFees();
+        const transactionReceiptRunner2ClaimFees = await ethers.provider.getTransactionReceipt(runner2ClaimFees.hash);
+        const gasUsedRunner2ClaimFee = transactionReceiptRunner2ClaimFees.gasUsed;
+        const gasPricePaidRunner2ClaimFee = transactionReceiptRunner2ClaimFees.effectiveGasPrice;
+        const transactionFeeRunner2ClaimFee = gasPricePaidRunner2ClaimFee.mul(gasUsedRunner2ClaimFee);
+
+        let runner2BalanceAfterClaim = await ethers.provider.getBalance(runner2.address);
+        expect(runner2BalanceAfterClaim.add(transactionFeeRunner2ClaimFee)).to.equal(runner2BalanceBeforeClaim.add(BigNumber.from("950000000000000000")))
+    })
 });

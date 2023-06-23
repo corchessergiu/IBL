@@ -452,9 +452,8 @@ contract IBL is Ownable, ReentrancyGuard {
             //rewardPerCycle[currentCycle] = calculatedCycleReward;
 
             currentStartedCycle = currentCycle;
-            
-            //summedCycleStakes[currentStartedCycle] += summedCycleStakes[lastStartedCycle] + currentCycleReward;
-            
+            summedCycleStakes[currentStartedCycle] += summedCycleStakes[lastStartedCycle];
+
             if (pendingStake != 0) {
                 summedCycleStakes[currentStartedCycle] += pendingStake;
                 pendingStake = 0;
@@ -484,7 +483,7 @@ contract IBL is Ownable, ReentrancyGuard {
         //         cycleTotalBatchesBurned[lastActiveCycle[account]];	
         //     accRewards[account] += lastCycleAccReward;	
         //     accCycleBatchesBurned[account] = 0;
-        // }
+        //}
         if (
             currentCycle > lastStartedCycle &&
             lastFeeUpdateCycle[account] != lastStartedCycle + 1
