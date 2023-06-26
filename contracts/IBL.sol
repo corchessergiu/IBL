@@ -167,8 +167,6 @@ contract IBL is Ownable, ReentrancyGuard {
      */
     mapping(address => uint256) public accSecondStake;
 
-    AggregatorV3Interface internal dataFeed;
-
     struct Component {
         string id;
         uint256 runPrice;
@@ -186,19 +184,11 @@ contract IBL is Ownable, ReentrancyGuard {
         uint256 fees
     );
 
-    /**
-     * Network: Sepolia
-     * Aggregator: ETH/USD
-     * Address: 0x694AA1769357215DE4FAC081bf1f309aDC325306
-     */
     constructor(address _devAddress){
         ibl = new IBLERC20();
         devAddress = _devAddress;
         i_initialTimestamp = block.timestamp;
         i_periodDuration = 1 days;
-        dataFeed = AggregatorV3Interface(
-            0x694AA1769357215DE4FAC081bf1f309aDC325306
-        );
     }
 
     function downlodApplication(string[] memory componentsIds) external payable nonReentrant {
@@ -222,13 +212,7 @@ contract IBL is Ownable, ReentrancyGuard {
             }
             totalPrice += actualComponent.downloadPrice;
         }
-        require(msg.value == totalPrice * 2, "IBL: You must send exact value!");
-        sendViaCall(payable(devAddress), (totalPrice*IBL_TEAM_FEE) / 10000);
-        cycleAccruedFees[currentCycle] += (totalPrice * POOL_FEE) / 10000;
-        rewardPerCycle[currentCycle] += 1000 ether;
-        accRewards[msg.sender] += 1000 ether;
-        lastActiveCycle[msg.sender] = currentCycle;
-        summedCycleStakes[currentCycle] += 1000 ether;
+        updateData(totalPrice);
     }  
 
     function runApplication(string[] memory componentsIds) external payable nonReentrant {
@@ -252,13 +236,23 @@ contract IBL is Ownable, ReentrancyGuard {
             }
             totalPrice += actualComponent.runPrice;
         }   
-        require(msg.value == totalPrice*2, "IBL: You must send exact value!");
+        updateData(totalPrice);
+    }
+
+    function updateData(uint256 totalPrice) internal {
+        require(msg.value == totalPrice * 2, "IBL: You must send exact value!");
         sendViaCall(payable(devAddress), (totalPrice * IBL_TEAM_FEE) / 10000);
         cycleAccruedFees[currentCycle] += (totalPrice * POOL_FEE) / 10000;
-        rewardPerCycle[currentCycle] += 1000 ether;
-        accRewards[msg.sender] += 1000 ether;
+        uint256 tokenAmount = calculateProportion(msg.value);
+        rewardPerCycle[currentCycle] += tokenAmount;
+        accRewards[msg.sender] += tokenAmount;
         lastActiveCycle[msg.sender] = currentCycle;
-        summedCycleStakes[currentCycle] += 1000 ether;
+        summedCycleStakes[currentCycle] += tokenAmount;
+    }
+
+    function calculateProportion(uint256 x) public pure returns (uint256) {
+        uint256 d = (x * 100) / 1;
+        return d;
     }
 
     function addComponent(Component memory component) external payable nonReentrant {
@@ -457,10 +451,6 @@ contract IBL is Ownable, ReentrancyGuard {
     function setUpNewCycle() internal {
         if (alreadyUpdateCycleData[currentCycle] == false) {
             alreadyUpdateCycleData[currentCycle] = true;
-            //lastCycleReward = currentCycleReward;
-            //uint256 calculatedCycleReward = (lastCycleReward * 10000) / 10020;
-            //currentCycleReward = calculatedCycleReward;
-            //rewardPerCycle[currentCycle] = calculatedCycleReward;
 
             currentStartedCycle = currentCycle;
             summedCycleStakes[currentStartedCycle] += summedCycleStakes[lastStartedCycle];
@@ -486,15 +476,6 @@ contract IBL is Ownable, ReentrancyGuard {
      * @param account the address of the account to make the updates for.
      */
     function updateStats(address account) internal {
-        //  if (	
-        //     currentCycle > lastActiveCycle[account] &&	
-        //     cycleAccruedFees[currentCycle] != 0	
-        // ) {	
-        //     uint256 lastCycleAccReward = (accCycleBatchesBurned[account] * rewardPerCycle[lastActiveCycle[account]]) / 	
-        //         cycleTotalBatchesBurned[lastActiveCycle[account]];	
-        //     accRewards[account] += lastCycleAccReward;	
-        //     accCycleBatchesBurned[account] = 0;
-        //}
         if (
             currentCycle > lastStartedCycle &&
             lastFeeUpdateCycle[account] != lastStartedCycle + 1
@@ -601,20 +582,5 @@ contract IBL is Ownable, ReentrancyGuard {
 
     function setDevAddress(address _devAddress) public onlyOwner nonReentrant{
         devAddress = _devAddress;
-    }
-
-    /**
-     * Returns the latest answer.
-     */
-    function getLatestData() public view returns (int) {
-        // prettier-ignore
-        (
-            /* uint80 roundID */,
-            int answer,
-            /*uint startedAt*/,
-            /*uint timeStamp*/,
-            /*uint80 answeredInRound*/
-        ) = dataFeed.latestRoundData();
-        return answer;
     }
 }
