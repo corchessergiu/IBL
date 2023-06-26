@@ -109,3 +109,6 @@ dist
 # hardhat
 artifacts/
 cache/
+
+#secrets
+.secrets.json
