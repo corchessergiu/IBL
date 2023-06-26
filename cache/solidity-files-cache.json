@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "/home/sergiu/Desktop/IBLPROJECT/contracts/IBL.sol": {
-      "lastModificationDate": 1687519330998,
-      "contentHash": "cc1b35f556b8b59b0c409cb39fb89282",
+      "lastModificationDate": 1687781635399,
+      "contentHash": "a7962b57b5b272990fd5f1e6fd397e20",
       "sourceName": "contracts/IBL.sol",
       "solcConfig": {
         "version": "0.8.17",
@@ -34,7 +34,8 @@
         "@openzeppelin/contracts/access/Ownable.sol",
         "./IBLERC20.sol",
         "@openzeppelin/contracts/utils/Strings.sol",
-        "hardhat/console.sol"
+        "hardhat/console.sol",
+        "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol"
       ],
       "versionPragmas": [
         "^0.8.17"
@@ -839,6 +840,41 @@
       ],
       "artifacts": [
         "Math"
+      ]
+    },
+    "/home/sergiu/Desktop/IBLPROJECT/node_modules/@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol": {
+      "lastModificationDate": 1687781704339,
+      "contentHash": "d9654a0fc044a31d4106ee6bca772add",
+      "sourceName": "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol",
+      "solcConfig": {
+        "version": "0.8.17",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "AggregatorV3Interface"
       ]
     }
   }

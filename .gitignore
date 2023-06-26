@@ -109,7 +109,3 @@ dist
 # hardhat
 artifacts/
 cache/
-build/
-interface/build/
-
-.secrets.json

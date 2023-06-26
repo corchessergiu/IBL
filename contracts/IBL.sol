@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./IBLERC20.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "hardhat/console.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 contract IBL is Ownable, ReentrancyGuard {
     using SafeERC20 for IBLERC20;
@@ -166,6 +167,8 @@ contract IBL is Ownable, ReentrancyGuard {
      */
     mapping(address => uint256) public accSecondStake;
 
+    AggregatorV3Interface internal dataFeed;
+
     struct Component {
         string id;
         uint256 runPrice;
@@ -183,11 +186,19 @@ contract IBL is Ownable, ReentrancyGuard {
         uint256 fees
     );
 
+    /**
+     * Network: Sepolia
+     * Aggregator: ETH/USD
+     * Address: 0x694AA1769357215DE4FAC081bf1f309aDC325306
+     */
     constructor(address _devAddress){
         ibl = new IBLERC20();
         devAddress = _devAddress;
         i_initialTimestamp = block.timestamp;
         i_periodDuration = 1 days;
+        dataFeed = AggregatorV3Interface(
+            0x694AA1769357215DE4FAC081bf1f309aDC325306
+        );
     }
 
     function downlodApplication(string[] memory componentsIds) external payable nonReentrant {
@@ -590,5 +601,20 @@ contract IBL is Ownable, ReentrancyGuard {
 
     function setDevAddress(address _devAddress) public onlyOwner nonReentrant{
         devAddress = _devAddress;
+    }
+
+    /**
+     * Returns the latest answer.
+     */
+    function getLatestData() public view returns (int) {
+        // prettier-ignore
+        (
+            /* uint80 roundID */,
+            int answer,
+            /*uint startedAt*/,
+            /*uint timeStamp*/,
+            /*uint80 answeredInRound*/
+        ) = dataFeed.latestRoundData();
+        return answer;
     }
 }
