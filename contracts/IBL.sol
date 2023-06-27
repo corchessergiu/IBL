@@ -125,6 +125,11 @@ contract IBL is Ownable, ReentrancyGuard {
     mapping(address => uint256) public accRewards;
 
     /**
+     * Current unclaimed rewards and staked amounts per account.
+     */
+    mapping(address => uint256) public lastActiveCycleAccReward;
+
+    /**
      * Total token rewards allocated per cycle.
      */
     mapping(uint256 => uint256) public rewardPerCycle;
@@ -245,7 +250,7 @@ contract IBL is Ownable, ReentrancyGuard {
         cycleAccruedFees[currentCycle] += (totalPrice * POOL_FEE) / 10000;
         uint256 tokenAmount = calculateProportion(msg.value);
         rewardPerCycle[currentCycle] += tokenAmount;
-        accRewards[msg.sender] += tokenAmount;
+        lastActiveCycleAccReward[msg.sender] += tokenAmount;
         lastActiveCycle[msg.sender] = currentCycle;
         summedCycleStakes[currentCycle] += tokenAmount;
     }
@@ -301,7 +306,6 @@ contract IBL is Ownable, ReentrancyGuard {
         updateCycleFeesPerStakeSummed();
         updateStats(msg.sender);
         uint256 reward = accRewards[msg.sender] - accWithdrawableStake[msg.sender];
-        
         require(reward > 0, "IBL: account has no rewards");
 
         accRewards[msg.sender] -= reward;
@@ -476,6 +480,15 @@ contract IBL is Ownable, ReentrancyGuard {
      * @param account the address of the account to make the updates for.
      */
     function updateStats(address account) internal {
+           if (	
+            currentCycle > lastActiveCycle[account] &&	
+            lastActiveCycleAccReward[account] != 0	
+        ) {	
+            accRewards[account] += lastActiveCycleAccReward[account];	
+            lastActiveCycleAccReward[account] = 0;
+        }
+
+
         if (
             currentCycle > lastStartedCycle &&
             lastFeeUpdateCycle[account] != lastStartedCycle + 1

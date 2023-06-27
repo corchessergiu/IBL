@@ -77,7 +77,7 @@ describe("Test getUserComponent", async function() {
         expect(await IBL.getCurrentCycle()).to.equal(0);
         await IBL.runApplication(["s"], { value: ethers.utils.parseEther("2") });
         expect(await IBL.ownerNativeFeeAcc(alice.address)).to.equal(ethers.utils.parseEther("0.5"));
-        expect(await IBL.accRewards(deployer.address)).to.equal(ethers.utils.parseEther("200"));
+        expect(await IBL.accRewards(deployer.address)).to.equal(ethers.utils.parseEther("0"));
         expect(await IBL.rewardPerCycle(0)).to.equal(ethers.utils.parseEther("200"));
 
         let aliceNative = await IBL.ownerNativeFeeAcc(alice.address);
@@ -85,7 +85,7 @@ describe("Test getUserComponent", async function() {
         expect(await IBL.ownerNativeFeeAcc(alice.address)).to.equal(BigNumber.from(aliceNative).add(ethers.utils.parseEther("0.6")));
         expect(await IBL.ownerNativeFeeAcc(bob.address)).to.equal(ethers.utils.parseEther("0.2"));
         expect(await IBL.ownerNativeFeeAcc(carol.address)).to.equal(ethers.utils.parseEther("0.2"));
-        expect(await IBL.accRewards(deployer.address)).to.equal(ethers.utils.parseEther("400"));
+        expect(await IBL.accRewards(deployer.address)).to.equal(ethers.utils.parseEther("0"));
         expect(await IBL.rewardPerCycle(0)).to.equal(ethers.utils.parseEther("400"));
 
         let aliceNativeAfterSecondCall = await IBL.ownerNativeFeeAcc(alice.address);
@@ -95,7 +95,7 @@ describe("Test getUserComponent", async function() {
         expect(await IBL.ownerNativeFeeAcc(alice.address)).to.equal(BigNumber.from(aliceNativeAfterSecondCall).add(ethers.utils.parseEther("0.5")).add(ethers.utils.parseEther("0.6")));
         expect(await IBL.ownerNativeFeeAcc(bob.address)).to.equal(BigNumber.from(bobNativeAfterSecondCall).add(ethers.utils.parseEther("0.2")));
         expect(await IBL.ownerNativeFeeAcc(carol.address)).to.equal(BigNumber.from(carolNativeAfterSecondCall).add(ethers.utils.parseEther("0.2")));
-        expect(await IBL.accRewards(dean.address)).to.equal(ethers.utils.parseEther("400"));
+        expect(await IBL.accRewards(dean.address)).to.equal(ethers.utils.parseEther("0"));
         expect(await IBL.rewardPerCycle(0)).to.equal(ethers.utils.parseEther("800"));
     });
 
@@ -124,7 +124,7 @@ describe("Test getUserComponent", async function() {
         expect(await IBL.ownerNativeFeeAcc(bob.address)).to.equal(ethers.utils.parseEther("0.8"));
         expect(await IBL.ownerNativeFeeAcc(carol.address)).to.equal(ethers.utils.parseEther("0.4"));
         expect(await IBL.ownerNativeFeeAcc(dean.address)).to.equal(ethers.utils.parseEther("0.4"));
-        expect(await IBL.accRewards(deployer.address)).to.equal(ethers.utils.parseEther("1000"));
+        expect(await IBL.accRewards(deployer.address)).to.equal(ethers.utils.parseEther("0"));
         expect(await IBL.rewardPerCycle(0)).to.equal(ethers.utils.parseEther("1000"));
 
         let aliceNative = await IBL.ownerNativeFeeAcc(alice.address);
@@ -136,7 +136,7 @@ describe("Test getUserComponent", async function() {
         expect(await IBL.ownerNativeFeeAcc(bob.address)).to.equal(BigNumber.from(bobNative).add(ethers.utils.parseEther("0.2")));
         expect(await IBL.ownerNativeFeeAcc(carol.address)).to.equal(BigNumber.from(carolNative).add(ethers.utils.parseEther("0.2")));
         expect(await IBL.ownerNativeFeeAcc(dean.address)).to.equal(BigNumber.from(deanNative).add(ethers.utils.parseEther("1")));
-        expect(await IBL.accRewards(deployer.address)).to.equal(ethers.utils.parseEther("1800"));
+        expect(await IBL.accRewards(deployer.address)).to.equal(ethers.utils.parseEther("0"));
         expect(await IBL.rewardPerCycle(0)).to.equal(ethers.utils.parseEther("1800"));
 
         let aliceNativeAfterSecondCall = await IBL.ownerNativeFeeAcc(alice.address);
@@ -148,7 +148,7 @@ describe("Test getUserComponent", async function() {
         expect(await IBL.ownerNativeFeeAcc(bob.address)).to.equal(BigNumber.from(bobNativeAfterSecondCall).add(ethers.utils.parseEther("0.2")).add(ethers.utils.parseEther("0.8")));
         expect(await IBL.ownerNativeFeeAcc(carol.address)).to.equal(BigNumber.from(carolNativeAfterSecondCall).add(ethers.utils.parseEther("0.2")).add(ethers.utils.parseEther("0.4")));
         expect(await IBL.ownerNativeFeeAcc(dean.address)).to.equal(BigNumber.from(deanNativeAfterSecondCall).add(ethers.utils.parseEther("1")).add(ethers.utils.parseEther("0.4")));
-        expect(await IBL.accRewards(deployer.address)).to.equal(ethers.utils.parseEther("3400"));
+        expect(await IBL.accRewards(deployer.address)).to.equal(ethers.utils.parseEther("0"));
         expect(await IBL.rewardPerCycle(0)).to.equal(ethers.utils.parseEther("3400"));
     });
 });
