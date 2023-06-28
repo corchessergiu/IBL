@@ -385,4 +385,35 @@ describe("Test claimRewards function", async function() {
         }
     });
 
+    it("Test reward function with float numbers as prices", async() => {
+        let component = ["s", ethers.utils.parseEther("1.32"), ethers.utils.parseEther("1.65"), [alice.address.toString()],
+            [ethers.utils.parseEther("1")]
+        ]
+        await IBL.connect(alice).addComponent(component, { value: ethers.utils.parseEther("1.65") })
+        await IBL.connect(alice).runApplication(["s"], { value: ethers.utils.parseEther("2.64") });
+
+        expect(await IBL.accRewards(alice.address)).to.equal(0);
+        await hre.ethers.provider.send("evm_increaseTime", [60 * 60 * 24])
+        await hre.ethers.provider.send("evm_mine")
+
+        await IBL.connect(alice).setNewPrice("s", ethers.utils.parseEther("1"), ethers.utils.parseEther("1"));
+        expect(await IBL.accRewards(alice.address)).to.equal(ethers.utils.parseEther("264"));
+        await IBL.connect(alice).setNewPrice("s", ethers.utils.parseEther("4.27"), ethers.utils.parseEther("1"));
+        await IBL.connect(alice).setNewPrice("s", ethers.utils.parseEther("4.27"), ethers.utils.parseEther("4.72"), { value: ethers.utils.parseEther("3.07") });
+
+        await IBL.connect(alice).downlodApplication(["s"], { value: ethers.utils.parseEther("9.44") });
+
+        await hre.ethers.provider.send("evm_increaseTime", [60 * 60 * 24])
+        await hre.ethers.provider.send("evm_mine")
+
+        await IBL.connect(alice).setNewPrice("s", ethers.utils.parseEther("4.27"), ethers.utils.parseEther("4.72"));
+        expect(await IBL.accRewards(alice.address)).to.equal(ethers.utils.parseEther("264").add(ethers.utils.parseEther("944")));
+
+        let aliceBalanceBeforeClaim = await IBLERC20.balanceOf(alice.address);
+        expect(aliceBalanceBeforeClaim).to.equal("0");
+        await IBL.connect(alice).claimRewards();
+        let aliceBalanceAfterClaim = await IBLERC20.balanceOf(alice.address);
+        expect(aliceBalanceAfterClaim).to.equal(ethers.utils.parseEther("1208"))
+    });
+
 });

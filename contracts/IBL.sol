@@ -352,7 +352,6 @@ contract IBL is Ownable, ReentrancyGuard {
         require(amount > 0, "IBL: amount is zero");
         pendingStake += amount;
         uint256 cycleToSet = currentCycle + 1;
-
         if (lastStartedCycle == currentStartedCycle) {
             cycleToSet = lastStartedCycle + 1;
         }
@@ -367,7 +366,6 @@ contract IBL is Ownable, ReentrancyGuard {
                 accSecondStake[msg.sender] = cycleToSet;
             }
         }
-
         accStakeCycle[msg.sender][cycleToSet] += amount;
         ibl.safeTransferFrom(msg.sender, address(this), amount);
     }
