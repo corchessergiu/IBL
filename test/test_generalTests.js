@@ -75,13 +75,13 @@ describe("Test getUserComponent", async function() {
         await IBL.connect(alice).addComponent(component2, { value: ethers.utils.parseEther("1") })
 
         expect(await IBL.getCurrentCycle()).to.equal(0);
-        await IBL.runApplication(["s"], { value: ethers.utils.parseEther("2") });
+        await IBL.distributeFeesFoRunningApplication(["s"], { value: ethers.utils.parseEther("2") });
         expect(await IBL.ownerNativeFeeAcc(alice.address)).to.equal(ethers.utils.parseEther("0.5"));
         expect(await IBL.accRewards(deployer.address)).to.equal(ethers.utils.parseEther("0"));
         expect(await IBL.rewardPerCycle(0)).to.equal(ethers.utils.parseEther("200"));
 
         let aliceNative = await IBL.ownerNativeFeeAcc(alice.address);
-        await IBL.runApplication(["s2"], { value: ethers.utils.parseEther("2") });
+        await IBL.distributeFeesFoRunningApplication(["s2"], { value: ethers.utils.parseEther("2") });
         expect(await IBL.ownerNativeFeeAcc(alice.address)).to.equal(BigNumber.from(aliceNative).add(ethers.utils.parseEther("0.6")));
         expect(await IBL.ownerNativeFeeAcc(bob.address)).to.equal(ethers.utils.parseEther("0.2"));
         expect(await IBL.ownerNativeFeeAcc(carol.address)).to.equal(ethers.utils.parseEther("0.2"));
@@ -91,7 +91,7 @@ describe("Test getUserComponent", async function() {
         let aliceNativeAfterSecondCall = await IBL.ownerNativeFeeAcc(alice.address);
         let bobNativeAfterSecondCall = await IBL.ownerNativeFeeAcc(bob.address);
         let carolNativeAfterSecondCall = await IBL.ownerNativeFeeAcc(carol.address);
-        await IBL.connect(dean).runApplication(["s2", "s"], { value: ethers.utils.parseEther("4") });
+        await IBL.connect(dean).distributeFeesFoRunningApplication(["s2", "s"], { value: ethers.utils.parseEther("4") });
         expect(await IBL.ownerNativeFeeAcc(alice.address)).to.equal(BigNumber.from(aliceNativeAfterSecondCall).add(ethers.utils.parseEther("0.5")).add(ethers.utils.parseEther("0.6")));
         expect(await IBL.ownerNativeFeeAcc(bob.address)).to.equal(BigNumber.from(bobNativeAfterSecondCall).add(ethers.utils.parseEther("0.2")));
         expect(await IBL.ownerNativeFeeAcc(carol.address)).to.equal(BigNumber.from(carolNativeAfterSecondCall).add(ethers.utils.parseEther("0.2")));
@@ -119,7 +119,7 @@ describe("Test getUserComponent", async function() {
         await IBL.connect(carol).addComponent(component4, { value: ethers.utils.parseEther("5") })
 
         expect(await IBL.getCurrentCycle()).to.equal(0);
-        await IBL.runApplication(["s", "s4"], { value: ethers.utils.parseEther("10") });
+        await IBL.distributeFeesFoRunningApplication(["s", "s4"], { value: ethers.utils.parseEther("10") });
         expect(await IBL.ownerNativeFeeAcc(alice.address)).to.equal(ethers.utils.parseEther("2.9"));
         expect(await IBL.ownerNativeFeeAcc(bob.address)).to.equal(ethers.utils.parseEther("0.8"));
         expect(await IBL.ownerNativeFeeAcc(carol.address)).to.equal(ethers.utils.parseEther("0.4"));
@@ -131,7 +131,7 @@ describe("Test getUserComponent", async function() {
         let bobNative = await IBL.ownerNativeFeeAcc(bob.address);
         let carolNative = await IBL.ownerNativeFeeAcc(carol.address);
         let deanNative = await IBL.ownerNativeFeeAcc(dean.address);
-        await IBL.runApplication(["s", "s2", "s3"], { value: ethers.utils.parseEther("8") });
+        await IBL.distributeFeesFoRunningApplication(["s", "s2", "s3"], { value: ethers.utils.parseEther("8") });
         expect(await IBL.ownerNativeFeeAcc(alice.address)).to.equal(BigNumber.from(aliceNative).add(ethers.utils.parseEther("0.5")).add(ethers.utils.parseEther("0.6")).add(ethers.utils.parseEther("1")));
         expect(await IBL.ownerNativeFeeAcc(bob.address)).to.equal(BigNumber.from(bobNative).add(ethers.utils.parseEther("0.2")));
         expect(await IBL.ownerNativeFeeAcc(carol.address)).to.equal(BigNumber.from(carolNative).add(ethers.utils.parseEther("0.2")));
@@ -143,7 +143,7 @@ describe("Test getUserComponent", async function() {
         let bobNativeAfterSecondCall = await IBL.ownerNativeFeeAcc(bob.address);
         let carolNativeAfterSecondCall = await IBL.ownerNativeFeeAcc(carol.address);
         let deanNativeAfterSecondCall = await IBL.ownerNativeFeeAcc(dean.address);
-        await IBL.runApplication(["s", "s2", "s3", "s4"], { value: ethers.utils.parseEther("16") });
+        await IBL.distributeFeesFoRunningApplication(["s", "s2", "s3", "s4"], { value: ethers.utils.parseEther("16") });
         expect(await IBL.ownerNativeFeeAcc(alice.address)).to.equal(BigNumber.from(aliceNativeAfterSecondCall).add(ethers.utils.parseEther("0.5")).add(ethers.utils.parseEther("0.6")).add(ethers.utils.parseEther("1")).add(ethers.utils.parseEther("2.4")));
         expect(await IBL.ownerNativeFeeAcc(bob.address)).to.equal(BigNumber.from(bobNativeAfterSecondCall).add(ethers.utils.parseEther("0.2")).add(ethers.utils.parseEther("0.8")));
         expect(await IBL.ownerNativeFeeAcc(carol.address)).to.equal(BigNumber.from(carolNativeAfterSecondCall).add(ethers.utils.parseEther("0.2")).add(ethers.utils.parseEther("0.4")));

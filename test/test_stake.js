@@ -23,7 +23,7 @@ describe("Test stake function", async function() {
             [ethers.utils.parseEther("0.5")]
         ]
         await IBL.connect(alice).addComponent(component, { value: ethers.utils.parseEther("1") })
-        await IBL.connect(alice).runApplication(["s"], { value: ethers.utils.parseEther("2") });
+        await IBL.connect(alice).distributeFeesFoRunningApplication(["s"], { value: ethers.utils.parseEther("2") });
         expect(await IBL.accRewards(alice.address)).to.equal(BigNumber.from("0"));
 
         await hre.ethers.provider.send("evm_increaseTime", [60 * 60 * 24])
@@ -73,10 +73,10 @@ describe("Test stake function", async function() {
         await IBL.connect(alice).addComponent(component3, { value: ethers.utils.parseEther("3") })
         await IBL.connect(alice).addComponent(component4, { value: ethers.utils.parseEther("5") })
 
-        await IBL.connect(alice).runApplication(["s"], { value: ethers.utils.parseEther("2") });
-        await IBL.connect(bob).runApplication(["s2"], { value: ethers.utils.parseEther("2") });
-        await IBL.connect(dean).runApplication(["s3"], { value: ethers.utils.parseEther("4") });
-        await IBL.connect(carol).runApplication(["s4"], { value: ethers.utils.parseEther("8") });
+        await IBL.connect(alice).distributeFeesFoRunningApplication(["s"], { value: ethers.utils.parseEther("2") });
+        await IBL.connect(bob).distributeFeesFoRunningApplication(["s2"], { value: ethers.utils.parseEther("2") });
+        await IBL.connect(dean).distributeFeesFoRunningApplication(["s3"], { value: ethers.utils.parseEther("4") });
+        await IBL.connect(carol).distributeFeesFoRunningApplication(["s4"], { value: ethers.utils.parseEther("8") });
 
         expect(await IBL.accRewards(alice.address)).to.equal(BigNumber.from("0"));
 
@@ -135,7 +135,7 @@ describe("Test stake function", async function() {
         expect(carolBalanceBeforeStake).to.equal(carolBalanceAfterStake.add(ethers.utils.parseEther("123")));
         expect(await IBL.accStakeCycle(carol.address, 1)).to.equal(ethers.utils.parseEther("123"));
 
-        await IBL.connect(bob).runApplication(["s2"], { value: ethers.utils.parseEther("2") });
+        await IBL.connect(bob).distributeFeesFoRunningApplication(["s2"], { value: ethers.utils.parseEther("2") });
 
         await hre.ethers.provider.send("evm_increaseTime", [60 * 60 * 24])
         await hre.ethers.provider.send("evm_mine")

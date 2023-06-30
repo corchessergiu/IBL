@@ -23,11 +23,17 @@ contract IBL is Ownable, ReentrancyGuard {
 
     mapping(string => uint256) public lastHighestDownloadPrice;
 
+    mapping(string =>  uint256) public applicationFee;
+
+    mapping(string => address) public applicationOwner;
+
+    mapping(address => uint256) public applicationFeeReward;
     /**
      * Sum of previous total cycle accrued fees divided by cycle stake.
      */
     mapping(uint256 => uint256) public cycleFeesPerStakeSummed;
 
+    mapping(string => uint256) public applicationTotalFeeAccrued;
 
     /**
     * The fee amount the account can withdraw.
@@ -201,13 +207,41 @@ contract IBL is Ownable, ReentrancyGuard {
         updateCycleFeesPerStakeSummed();
         setUpNewCycle();
         updateStats(msg.sender);
+        uint256 totalPrice = calculatedownlodFeeApplication(componentsIds);
+        updateData(totalPrice, "");
+    }  
+
+    function distributeFeesFoRunningApplication(string[] memory componentsIds, string memory applicationId) external payable nonReentrant {
+        calculateCycle();
+        updateCycleFeesPerStakeSummed();
+        setUpNewCycle();
+        updateStats(msg.sender);
+        uint256 totalPrice = calculateFeesFoRunningApplication(componentsIds);
+        updateData(totalPrice, applicationId);
+    }
+
+    function updateData(uint256 totalPrice, string memory applicationId) internal {
+        uint256 applicationFee = applicationFee[applicationId];
+        require(msg.value == totalPrice * 2 + applicationFee, "IBL: You must send exact value!");
+        sendViaCall(payable(devAddress), (totalPrice * IBL_TEAM_FEE) / 10000);
+        cycleAccruedFees[currentCycle] += (totalPrice * POOL_FEE) / 10000;
+        applicationFeeReward[applicationOwner[applicationId]] += applicationFee;
+        applicationTotalFeeAccrued[applicationId] += applicationFee;
+        uint256 tokenAmount = calculateProportion(msg.value);
+        rewardPerCycle[currentCycle] += tokenAmount;
+        lastActiveCycleAccReward[msg.sender] += tokenAmount;
+        lastActiveCycle[msg.sender] = currentCycle;
+        summedCycleStakes[currentCycle] += tokenAmount;
+    }
+
+    function calculatedownlodFeeApplication(string[] memory componentsIds) public returns(uint256) {
         uint256 totalPrice = 0; 
         uint256 componentsLength = componentsIds.length;
         Component memory actualComponent;
         address[] memory owners;
         uint256[] memory procentages;
         uint256 ownersLength;
-        for(uint256 i=0; i<componentsLength; i++){
+        for(uint256 i=0; i<componentsLength; i++) {
             actualComponent = componentData[componentsIds[i]];
             owners = actualComponent.owners;
             procentages = actualComponent.procentages;
@@ -217,14 +251,10 @@ contract IBL is Ownable, ReentrancyGuard {
             }
             totalPrice += actualComponent.downloadPrice;
         }
-        updateData(totalPrice);
-    }  
+        return totalPrice;
+    }
 
-    function runApplication(string[] memory componentsIds) external payable nonReentrant {
-        calculateCycle();
-        updateCycleFeesPerStakeSummed();
-        setUpNewCycle();
-        updateStats(msg.sender);
+    function calculateFeesFoRunningApplication(string[] memory componentsIds) public returns(uint256) {
         uint256 totalPrice = 0; 
         uint256 componentsLength = componentsIds.length;
         Component memory actualComponent;
@@ -240,19 +270,8 @@ contract IBL is Ownable, ReentrancyGuard {
                 ownerNativeFeeAcc[owners[j]] += actualComponent.runPrice * procentages[j] / 1 ether;
             }
             totalPrice += actualComponent.runPrice;
-        }   
-        updateData(totalPrice);
-    }
-
-    function updateData(uint256 totalPrice) internal {
-        require(msg.value == totalPrice * 2, "IBL: You must send exact value!");
-        sendViaCall(payable(devAddress), (totalPrice * IBL_TEAM_FEE) / 10000);
-        cycleAccruedFees[currentCycle] += (totalPrice * POOL_FEE) / 10000;
-        uint256 tokenAmount = calculateProportion(msg.value);
-        rewardPerCycle[currentCycle] += tokenAmount;
-        lastActiveCycleAccReward[msg.sender] += tokenAmount;
-        lastActiveCycle[msg.sender] = currentCycle;
-        summedCycleStakes[currentCycle] += tokenAmount;
+        }  
+        return totalPrice;
     }
 
     function calculateProportion(uint256 x) public pure returns (uint256) {
@@ -268,6 +287,16 @@ contract IBL is Ownable, ReentrancyGuard {
         componentData[component.id] = Component(component.id, component.runPrice, component.downloadPrice , component.owners, component.procentages);
         lastHighestDownloadPrice[component.id] = component.downloadPrice;
         sendViaCall(payable(devAddress), msg.value);
+    }
+
+    function addApplicationFee(string memory id, uint256 fee) external nonReentrant {
+        applicationFee[id] = fee;
+        applicationOwner[id] = msg.sender;
+    }
+
+    function setNewApplicationFee(string memory id, uint256 newFee) external nonReentrant {
+        require(applicationOwner[id] == msg.sender, "IBL: You are not the owner of this application!");
+        applicationFee[id] = newFee;
     }
 
     function setNewPrice(string memory id, uint256 newRunPrice, uint256 newDownloadPrice) external payable nonReentrant {
@@ -332,6 +361,28 @@ contract IBL is Ownable, ReentrancyGuard {
         uint256 fees = accAccruedFees[msg.sender];
         require(fees > 0, "IBL: amount is zero");
         accAccruedFees[msg.sender] = 0;
+        sendViaCall(payable(msg.sender), fees);
+    }
+
+    function claimComponentOwnerFees() external nonReentrant()
+       {
+        calculateCycle();
+        updateCycleFeesPerStakeSummed();
+        updateStats(msg.sender);
+        uint256 fees = ownerNativeFeeAcc[msg.sender];
+        require(fees > 0, "IBL: amount is zero");
+        ownerNativeFeeAcc[msg.sender] = 0;
+        sendViaCall(payable(msg.sender), fees);
+    }
+
+    function claimApplicationFee() external nonReentrant()
+       {
+        calculateCycle();
+        updateCycleFeesPerStakeSummed();
+        updateStats(msg.sender);
+        uint256 fees = applicationFeeReward[msg.sender];
+        require(fees > 0, "IBL: amount is zero");
+        applicationFeeReward[msg.sender] = 0;
         sendViaCall(payable(msg.sender), fees);
     }
 
@@ -469,7 +520,6 @@ contract IBL is Ownable, ReentrancyGuard {
             
         }
     }
-    
 
     /**
      * @dev Updates various helper state variables used to compute token rewards 
@@ -554,17 +604,6 @@ contract IBL is Ownable, ReentrancyGuard {
                 }
             }
         }
-    }
-
-    function claimComponentOwnerFees() external nonReentrant()
-       {
-        calculateCycle();
-        updateCycleFeesPerStakeSummed();
-        updateStats(msg.sender);
-        uint256 fees = ownerNativeFeeAcc[msg.sender];
-        require(fees > 0, "IBL: amount is zero");
-        ownerNativeFeeAcc[msg.sender] = 0;
-        sendViaCall(payable(msg.sender), fees);
     }
 
     /**
