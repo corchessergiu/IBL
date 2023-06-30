@@ -15,8 +15,6 @@ contract IBL is Ownable, ReentrancyGuard {
 
     mapping(string => Component) public componentData;
 
-    mapping(address => uint256) public builderReward;
-
     mapping(address => uint256) public ownerNativeFeeAcc;
     
     mapping(uint256 => bool) public alreadyUpdateCycleData;
@@ -207,34 +205,6 @@ contract IBL is Ownable, ReentrancyGuard {
         updateCycleFeesPerStakeSummed();
         setUpNewCycle();
         updateStats(msg.sender);
-        uint256 totalPrice = calculatedownlodFeeApplication(componentsIds);
-        updateData(totalPrice, "");
-    }  
-
-    function distributeFeesFoRunningApplication(string[] memory componentsIds, string memory applicationId) external payable nonReentrant {
-        calculateCycle();
-        updateCycleFeesPerStakeSummed();
-        setUpNewCycle();
-        updateStats(msg.sender);
-        uint256 totalPrice = calculateFeesFoRunningApplication(componentsIds);
-        updateData(totalPrice, applicationId);
-    }
-
-    function updateData(uint256 totalPrice, string memory applicationId) internal {
-        uint256 applicationFee = applicationFee[applicationId];
-        require(msg.value == totalPrice * 2 + applicationFee, "IBL: You must send exact value!");
-        sendViaCall(payable(devAddress), (totalPrice * IBL_TEAM_FEE) / 10000);
-        cycleAccruedFees[currentCycle] += (totalPrice * POOL_FEE) / 10000;
-        applicationFeeReward[applicationOwner[applicationId]] += applicationFee;
-        applicationTotalFeeAccrued[applicationId] += applicationFee;
-        uint256 tokenAmount = calculateProportion(msg.value);
-        rewardPerCycle[currentCycle] += tokenAmount;
-        lastActiveCycleAccReward[msg.sender] += tokenAmount;
-        lastActiveCycle[msg.sender] = currentCycle;
-        summedCycleStakes[currentCycle] += tokenAmount;
-    }
-
-    function calculatedownlodFeeApplication(string[] memory componentsIds) public returns(uint256) {
         uint256 totalPrice = 0; 
         uint256 componentsLength = componentsIds.length;
         Component memory actualComponent;
@@ -249,12 +219,24 @@ contract IBL is Ownable, ReentrancyGuard {
             for(uint256 j=0; j<ownersLength; j++){
                 ownerNativeFeeAcc[owners[j]] += actualComponent.downloadPrice * procentages[j] / 1 ether;
             }
-            totalPrice += actualComponent.downloadPrice;
         }
-        return totalPrice;
-    }
+        totalPrice = calculatedownlodFeeApplication(componentsIds);
+        require(msg.value == totalPrice, "IBL: You must send exact value!");
+        uint256 totalPriceForDistribution = totalPrice / 2;
+        sendViaCall(payable(devAddress), (totalPriceForDistribution * IBL_TEAM_FEE) / 10000);
+        cycleAccruedFees[currentCycle] += (totalPriceForDistribution * POOL_FEE) / 10000;
+        uint256 tokenAmount = calculateProportion(msg.value);
+        rewardPerCycle[currentCycle] += tokenAmount;
+        lastActiveCycleAccReward[msg.sender] += tokenAmount;
+        lastActiveCycle[msg.sender] = currentCycle;
+        summedCycleStakes[currentCycle] += tokenAmount;
+    }  
 
-    function calculateFeesFoRunningApplication(string[] memory componentsIds) public returns(uint256) {
+    function distributeFeesFoRunningApplication(string[] memory componentsIds, string memory applicationId) external payable nonReentrant {
+        calculateCycle();
+        updateCycleFeesPerStakeSummed();
+        setUpNewCycle();
+        updateStats(msg.sender);
         uint256 totalPrice = 0; 
         uint256 componentsLength = componentsIds.length;
         Component memory actualComponent;
@@ -269,12 +251,46 @@ contract IBL is Ownable, ReentrancyGuard {
             for(uint256 j=0; j<ownersLength; j++){
                 ownerNativeFeeAcc[owners[j]] += actualComponent.runPrice * procentages[j] / 1 ether;
             }
-            totalPrice += actualComponent.runPrice;
         }  
-        return totalPrice;
+        uint256 applicationFee = applicationFee[applicationId];
+        applicationFeeReward[applicationOwner[applicationId]] += applicationFee;
+        applicationTotalFeeAccrued[applicationId] += applicationFee;
+        totalPrice = calculateFeesFoRunningApplication(componentsIds, applicationId);
+        require(msg.value == totalPrice, "IBL: You must send exact value!");
+        uint256 totalPriceForDistribution = (totalPrice - applicationFee) / 2;
+        sendViaCall(payable(devAddress), (totalPriceForDistribution * IBL_TEAM_FEE) / 10000);
+        cycleAccruedFees[currentCycle] += (totalPriceForDistribution * POOL_FEE) / 10000;
+        uint256 tokenAmount = calculateProportion(msg.value);
+        rewardPerCycle[currentCycle] += tokenAmount;
+        lastActiveCycleAccReward[msg.sender] += tokenAmount;
+        lastActiveCycle[msg.sender] = currentCycle;
+        summedCycleStakes[currentCycle] += tokenAmount;
     }
 
-    function calculateProportion(uint256 x) public pure returns (uint256) {
+    function calculatedownlodFeeApplication(string[] memory componentsIds) public view returns(uint256) {
+        uint256 totalPrice = 0; 
+        uint256 componentsLength = componentsIds.length;
+        Component memory actualComponent;
+        for(uint256 i=0; i<componentsLength; i++) {
+            actualComponent = componentData[componentsIds[i]];
+            totalPrice += actualComponent.downloadPrice;
+        }
+        return totalPrice * 2;
+    }
+
+    function calculateFeesFoRunningApplication(string[] memory componentsIds, string memory applicationId) public view returns(uint256) {
+        uint256 totalPrice = 0; 
+        uint256 componentsLength = componentsIds.length;
+        Component memory actualComponent;
+        for(uint256 i=0; i<componentsLength; i++){
+            actualComponent = componentData[componentsIds[i]];
+            totalPrice += actualComponent.runPrice;
+        }  
+        uint256 applicationFee = applicationFee[applicationId];
+        return totalPrice * 2 + applicationFee;
+    }
+
+    function calculateProportion(uint256 x) internal pure returns (uint256) {
         uint256 d = (x * 100) / 1;
         return d;
     }
