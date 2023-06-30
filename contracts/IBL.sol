@@ -181,7 +181,7 @@ contract IBL is Ownable, ReentrancyGuard {
         uint256 runPrice;
         uint256 downloadPrice;
         address[] owners;
-        uint256[] procentages;
+        uint256[] percentages;
     }
     /**
      * @dev Emitted when `account` claims an amount of `fees` in native token
@@ -209,15 +209,15 @@ contract IBL is Ownable, ReentrancyGuard {
         uint256 componentsLength = componentsIds.length;
         Component memory actualComponent;
         address[] memory owners;
-        uint256[] memory procentages;
+        uint256[] memory percentages;
         uint256 ownersLength;
         for(uint256 i=0; i<componentsLength; i++) {
             actualComponent = componentData[componentsIds[i]];
             owners = actualComponent.owners;
-            procentages = actualComponent.procentages;
+            percentages = actualComponent.percentages;
             ownersLength = owners.length;
             for(uint256 j=0; j<ownersLength; j++){
-                ownerNativeFeeAcc[owners[j]] += actualComponent.downloadPrice * procentages[j] / 1 ether;
+                ownerNativeFeeAcc[owners[j]] += actualComponent.downloadPrice * percentages[j] / 1 ether;
             }
         }
         totalPrice = calculatedownlodFeeApplication(componentsIds);
@@ -241,15 +241,15 @@ contract IBL is Ownable, ReentrancyGuard {
         uint256 componentsLength = componentsIds.length;
         Component memory actualComponent;
         address[] memory owners;
-        uint256[] memory procentages;
+        uint256[] memory percentages;
         uint256 ownersLength;
         for(uint256 i=0; i<componentsLength; i++){
             actualComponent = componentData[componentsIds[i]];
             owners = actualComponent.owners;
-            procentages = actualComponent.procentages;
+            percentages = actualComponent.percentages;
             ownersLength = owners.length;
             for(uint256 j=0; j<ownersLength; j++){
-                ownerNativeFeeAcc[owners[j]] += actualComponent.runPrice * procentages[j] / 1 ether;
+                ownerNativeFeeAcc[owners[j]] += actualComponent.runPrice * percentages[j] / 1 ether;
             }
         }  
         uint256 applicationFee = applicationFee[applicationId];
@@ -300,7 +300,7 @@ contract IBL is Ownable, ReentrancyGuard {
         updateCycleFeesPerStakeSummed();
         updateStats(msg.sender);
         require(msg.value == component.downloadPrice, "IBL: You must pay publication fee!");
-        componentData[component.id] = Component(component.id, component.runPrice, component.downloadPrice , component.owners, component.procentages);
+        componentData[component.id] = Component(component.id, component.runPrice, component.downloadPrice , component.owners, component.percentages);
         lastHighestDownloadPrice[component.id] = component.downloadPrice;
         sendViaCall(payable(devAddress), msg.value);
     }
@@ -336,7 +336,7 @@ contract IBL is Ownable, ReentrancyGuard {
             lastHighestDownloadPrice[id] = newDownloadPrice;
             cycleAccruedFees[currentCycle] += msg.value;
         } 
-        componentData[id] = Component(id, newRunPrice, newDownloadPrice, component.owners, component.procentages);
+        componentData[id] = Component(id, newRunPrice, newDownloadPrice, component.owners, component.percentages);
     }
     
     /**
@@ -641,8 +641,8 @@ contract IBL is Ownable, ReentrancyGuard {
         return componentData[id].owners;
     }   
 
-    function getProcentagesForComponent(string memory id) public view returns(uint256[] memory) {
-        return componentData[id].procentages;
+    function getPercentagesForComponent(string memory id) public view returns(uint256[] memory) {
+        return componentData[id].percentages;
     }
 
 
