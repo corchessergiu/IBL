@@ -232,7 +232,7 @@ contract IBL is Ownable, ReentrancyGuard {
         summedCycleStakes[currentCycle] += tokenAmount;
     }  
 
-    function distributeFeesFoRunningApplication(string[] memory componentsIds, string memory applicationId) external payable nonReentrant {
+    function distributeFeesForRunningApplication(string[] memory componentsIds, string memory applicationId) external payable nonReentrant {
         calculateCycle();
         updateCycleFeesPerStakeSummed();
         setUpNewCycle();
