@@ -21,13 +21,13 @@ contract IBL is Ownable, ReentrancyGuard {
 
     mapping(string => uint256) public lastHighestDownloadPrice;
 
-   // mapping(string =>  uint256) public applicationFee;
-
-   mapping(string => address) public applicationOwner;
+    mapping(string => address) public applicationOwner;
 
     mapping(address => uint256) public applicationFeeReward;
 
     mapping(string => Application) public applicationData;
+
+    mapping(string => uint256) public componentAccFee;
     /**
      * Sum of previous total cycle accrued fees divided by cycle stake.
      */
@@ -227,6 +227,7 @@ contract IBL is Ownable, ReentrancyGuard {
                 ownerNativeFeeAcc[owners[j]] += actualComponent.downloadPrice * percentages[j] / 1 ether;
             }
         }
+        componentAccFee[actualComponent.id] += actualComponent.downloadPrice;
         totalPrice = calculatedownlodFeeApplication(applicationId);
         require(msg.value == totalPrice, "IBL: You must send exact value!");
         uint256 totalPriceForDistribution = totalPrice / 2;
@@ -258,6 +259,7 @@ contract IBL is Ownable, ReentrancyGuard {
             for(uint256 j=0; j<ownersLength; j++){
                 ownerNativeFeeAcc[owners[j]] += actualComponent.runPrice * percentages[j] / 1 ether;
             }
+            componentAccFee[actualComponent.id] += actualComponent.runPrice;
         }  
         uint256 appFee = applicationData[applicationId].fee;
         applicationFeeReward[applicationOwner[applicationId]] += appFee;
@@ -312,15 +314,6 @@ contract IBL is Ownable, ReentrancyGuard {
         sendViaCall(payable(devAddress), msg.value);
     }
 
-    function addApplication(Application memory application, string memory applicationId) external {
-        string[] memory appComponentIds = application.componentsIds;
-        uint256 componentsLength = appComponentIds.length;
-        for(uint256 i=0; i<componentsLength; i++){
-            applicationData[applicationId] = application;
-        }
-        applicationOwner[applicationId] = msg.sender;
-    }
-
     function getApplicationData(string memory applicationId) public view returns(string[] memory, uint256, address){
         uint256 numberOfComponents = applicationData[applicationId].componentsIds.length;
         string[] memory componentsIdsForApp = new string[](numberOfComponents);
@@ -333,9 +326,11 @@ contract IBL is Ownable, ReentrancyGuard {
         return(componentsIdsForApp, appFee, appOwner);
     }
 
-    function setNewApplicationFee(string memory applicationId, uint256 newFee) external nonReentrant {
-        require(applicationOwner[applicationId] == msg.sender, "IBL: You are not the owner of this application!");
-        applicationData[applicationId].fee = newFee;
+    function setApplication(string memory applicationId, Application memory application) external nonReentrant {
+        if(applicationOwner[applicationId] != address(0))
+            require(applicationOwner[applicationId] == msg.sender, "IBL: You are not the owner of this application!");
+        applicationData[applicationId] = application;
+        applicationOwner[applicationId] = msg.sender;
     }
 
     function setNewComponentPrice(string memory id, uint256 newRunPrice, uint256 newDownloadPrice) external payable nonReentrant {
