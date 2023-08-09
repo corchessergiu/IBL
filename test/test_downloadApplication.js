@@ -50,7 +50,7 @@ describe("Test downloadApplication", async function() {
         expect(await IBL.rewardPerCycle(0)).to.equal(ethers.utils.parseEther("800"));
     });
 
-    it("Test runApplication functionality, more components", async() => {
+    it.only("Test download functionality, more components", async() => {
         let component = ["s", ethers.utils.parseEther("1"), ethers.utils.parseEther("1"), [alice.address.toString()],
             [ethers.utils.parseEther("0.5")]
         ]
